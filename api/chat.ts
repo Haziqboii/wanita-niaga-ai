@@ -1,14 +1,16 @@
 // Vercel Serverless Function: POST /api/chat
 
 export async function POST(request: Request) {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey =
+    request.headers.get('x-gemini-api-key') || process.env.GEMINI_API_KEY
+
   if (!apiKey || apiKey.trim() === '') {
     return new Response(
       JSON.stringify({
         success: false,
         status: 503,
         error:
-          'Kunci API Gemini belum dikonfigurasi. Sila tetapkan pembolehubah GEMINI_API_KEY di papan pemuka Vercel (Settings > Environment Variables).',
+          'Kunci API Gemini belum dikonfigurasi. Sila tetapkan pembolehubah GEMINI_API_KEY di papan pemuka Vercel (Settings > Environment Variables) atau masukkan kunci API anda.',
       }),
       { status: 503, headers: { 'Content-Type': 'application/json' } }
     )
@@ -49,10 +51,11 @@ Sasarkan 50–90 patah perkataan. Elakkan bahasa teknikal dan panggil pengguna s
   }
 
   const candidateModels = [
-    process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
-    'gemini-1.5-flash-lite',
+    process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
+    'gemini-2.5-flash-lite',
     'gemini-2.5-flash',
-    'gemini-1.5-flash',
   ]
   const modelsToTry = Array.from(new Set(candidateModels))
 

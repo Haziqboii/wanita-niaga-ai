@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ApiKeyModal } from './ApiKeyModal'
 import {
   SparklesIcon,
   AiChatBubbleIcon,
@@ -36,6 +37,7 @@ export function StoryInputForm({
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [clarification, setClarification] = useState<string | null>(null)
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
 
   // Stage 2: Extracted records review
   const [extractedRecords, setExtractedRecords] = useState<RawSale[] | null>(null)
@@ -337,15 +339,40 @@ export function StoryInputForm({
                 <span>Maaf Puan, ada sedikit masalah:</span>
               </div>
               <p className="leading-relaxed text-rose-800">{errorMessage}</p>
-              <button
-                type="button"
-                onClick={handleExtract}
-                disabled={isLoading || !story.trim()}
-                className="text-xs font-bold text-[#BE1E72] hover:underline cursor-pointer inline-flex items-center gap-1 pt-1 min-h-[44px]"
-              >
-                <span>Cuba semula sekarang</span>
-                <span aria-hidden="true">↻</span>
-              </button>
+
+              {(errorMessage.includes('GEMINI_API_KEY') || errorMessage.includes('Kunci API') || errorMessage.includes('kunci API')) && (
+                <div className="pt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyModal(true)}
+                    className="inline-flex items-center gap-1.5 bg-[#BE1E72] hover:bg-[#A3165F] active:bg-[#8B0F4E] text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer min-h-[38px]"
+                  >
+                    <span>🔑</span>
+                    <span>Masukkan Kunci API di sini</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExtract}
+                    disabled={isLoading || !story.trim()}
+                    className="text-xs font-bold text-[#BE1E72] hover:underline cursor-pointer inline-flex items-center gap-1 px-3 py-2 min-h-[38px]"
+                  >
+                    <span>Cuba semula</span>
+                    <span aria-hidden="true">↻</span>
+                  </button>
+                </div>
+              )}
+
+              {!errorMessage.includes('GEMINI_API_KEY') && !errorMessage.includes('Kunci API') && !errorMessage.includes('kunci API') && (
+                <button
+                  type="button"
+                  onClick={handleExtract}
+                  disabled={isLoading || !story.trim()}
+                  className="text-xs font-bold text-[#BE1E72] hover:underline cursor-pointer inline-flex items-center gap-1 pt-1 min-h-[44px]"
+                >
+                  <span>Cuba semula sekarang</span>
+                  <span aria-hidden="true">↻</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -911,6 +938,12 @@ export function StoryInputForm({
           </div>
         </div>
       )}
+
+      {/* API Key Modal */}
+      <ApiKeyModal
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+      />
     </div>
   )
 }

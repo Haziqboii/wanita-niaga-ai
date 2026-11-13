@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { MarkdownText } from './MarkdownText'
+import { ApiKeyModal } from './ApiKeyModal'
 import {
   MagnifyingGlassIcon,
   SparklesIcon,
@@ -29,6 +30,9 @@ export function Chat({
 }: ChatProps) {
   const [inputText, setInputText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const [, setKeyVersion] = useState(0)
+  const hasCustomKey = typeof window !== 'undefined' ? Boolean(localStorage.getItem('user_gemini_api_key')) : false
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const adaptiveQuestions = getAdaptiveSuggestedQuestions(result)
@@ -143,13 +147,26 @@ export function Chat({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-xs sm:text-sm font-bold text-[#BE1E72] hover:text-[#9B1258] bg-[#FCE7F3] hover:bg-pink-100 active:scale-95 px-3.5 sm:px-4 py-2 min-h-[44px] rounded-full border border-pink-200 transition-all cursor-pointer shadow-2xs shrink-0"
-        >
-          Papan Pemuka
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowApiKeyModal(true)}
+            title="Tetapan Kunci API Gemini"
+            className="relative w-10 h-10 rounded-full border border-[#F1D3E3] bg-white hover:bg-[#FFF5FA] active:scale-95 text-[#68586B] hover:text-[#BE1E72] flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0"
+          >
+            <span className="text-base" aria-hidden="true">🔑</span>
+            {hasCustomKey && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-xs sm:text-sm font-bold text-[#BE1E72] hover:text-[#9B1258] bg-[#FCE7F3] hover:bg-pink-100 active:scale-95 px-3.5 sm:px-4 py-2 min-h-[44px] rounded-full border border-pink-200 transition-all cursor-pointer shadow-2xs shrink-0"
+          >
+            Papan Pemuka
+          </button>
+        </div>
       </div>
 
       {/* 2. Suggested Questions Above Chat (Cadangan Soalan Pantas) - Smooth horizontal scroll action without visible scroller UI */}
@@ -237,6 +254,20 @@ export function Chat({
                       <div className="text-inherit">
                         <MarkdownText content={msg.text} />
                       </div>
+
+                      {/* Action button if API key issue */}
+                      {msg.isError && (msg.text.includes('GEMINI_API_KEY') || msg.text.includes('Kunci API') || msg.text.includes('kunci API')) && (
+                        <div className="mt-3 pt-2.5 border-t border-red-200 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowApiKeyModal(true)}
+                            className="inline-flex items-center gap-1.5 bg-[#BE1E72] hover:bg-[#A3165F] active:bg-[#8B0F4E] text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer min-h-[38px]"
+                          >
+                            <span>🔑</span>
+                            <span>Masukkan Kunci API di sini</span>
+                          </button>
+                        </div>
+                      )}
 
                       {/* Meta info & "Terangkan Lagi" inside Bot Bubble (No Teal) */}
                       {!msg.isError && (
@@ -380,6 +411,13 @@ export function Chat({
           Soalan dihantar ke Google Gemini untuk mendapat jawapan berkaitan perniagaan Puan.
         </p>
       </div>
+
+      {/* API Key Configuration Modal */}
+      <ApiKeyModal
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+        onSaved={() => setKeyVersion((v) => v + 1)}
+      />
     </div>
   )
 }

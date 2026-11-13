@@ -238,12 +238,18 @@ export async function getAssistantResponse(
     const timeoutId = setTimeout(() => controller.abort(), 25000) // 25s timeout
 
     const sessionId = getClientSessionId()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-session-id': sessionId,
+    }
+    const customKey = typeof window !== 'undefined' ? localStorage.getItem('user_gemini_api_key') : null
+    if (customKey && customKey.trim()) {
+      headers['x-gemini-api-key'] = customKey.trim()
+    }
+
     const response = await fetch('/api/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-session-id': sessionId,
-      },
+      headers,
       body: JSON.stringify({
         message: trimmed,
         sessionId,

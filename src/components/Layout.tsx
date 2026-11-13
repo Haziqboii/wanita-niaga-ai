@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState } from 'react'
+import { ApiKeyModal } from './ApiKeyModal'
 import {
   BookOpenIcon,
   StorefrontIcon,
@@ -38,6 +39,8 @@ export function Layout({
   hideHeader = false,
   onNavHome,
 }: LayoutProps) {
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const hasKey = typeof window !== 'undefined' ? Boolean(localStorage.getItem('user_gemini_api_key')) : false
   // If on Story Input / Review / Upload / Manual / Dashboard: Berry Pop inner page layout matching reference images
   if (isStory || isInnerBerryPop) {
     return (
@@ -72,30 +75,44 @@ export function Layout({
                   </div>
                 </div>
 
-                {/* Right Side: Step Indicator (e.g. "Langkah 2/3") or Help Icon (?) or Close Button */}
-                {stepIndicator ? (
-                  <span className="text-xs sm:text-sm font-semibold text-[#68586B] font-body">
-                    {stepIndicator}
-                  </span>
-                ) : onOpenGuide ? (
+                {/* Right Side: Step Indicator or Actions */}
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={onOpenGuide}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border-2 border-[#BE1E72] text-[#BE1E72] hover:bg-pink-50 active:scale-95 transition-all cursor-pointer shadow-2xs"
-                    title="Buka Panduan Pengguna"
-                    aria-label="Buka Panduan Pengguna"
+                    onClick={() => setShowApiKeyModal(true)}
+                    title="Tetapan Kunci API Gemini"
+                    className="relative w-9 h-9 rounded-full border border-[#F1D3E3] bg-white hover:bg-[#FFF5FA] active:scale-95 text-[#68586B] hover:text-[#BE1E72] flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0"
                   >
-                    <QuestionCircleIcon className="w-5 h-5 text-[#BE1E72]" />
+                    <span className="text-sm" aria-hidden="true">🔑</span>
+                    {hasKey && (
+                      <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                    )}
                   </button>
-                ) : onBack && currentStep === 'Panduan Pengguna' ? (
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    className="text-xs sm:text-sm font-bold text-[#BE1E72] hover:text-[#9B1258] bg-[#FCE7F3] hover:bg-pink-100 active:scale-95 px-3.5 sm:px-4 py-1.5 min-h-[40px] rounded-full border border-pink-200 transition-all cursor-pointer shadow-2xs"
-                  >
-                    ✕ Tutup
-                  </button>
-                ) : null}
+
+                  {stepIndicator ? (
+                    <span className="text-xs sm:text-sm font-semibold text-[#68586B] font-body">
+                      {stepIndicator}
+                    </span>
+                  ) : onOpenGuide ? (
+                    <button
+                      type="button"
+                      onClick={onOpenGuide}
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border-2 border-[#BE1E72] text-[#BE1E72] hover:bg-pink-50 active:scale-95 transition-all cursor-pointer shadow-2xs"
+                      title="Buka Panduan Pengguna"
+                      aria-label="Buka Panduan Pengguna"
+                    >
+                      <QuestionCircleIcon className="w-5 h-5 text-[#BE1E72]" />
+                    </button>
+                  ) : onBack && currentStep === 'Panduan Pengguna' ? (
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      className="text-xs sm:text-sm font-bold text-[#BE1E72] hover:text-[#9B1258] bg-[#FCE7F3] hover:bg-pink-100 active:scale-95 px-3.5 sm:px-4 py-1.5 min-h-[40px] rounded-full border border-pink-200 transition-all cursor-pointer shadow-2xs"
+                    >
+                      ✕ Tutup
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           </header>
@@ -105,6 +122,11 @@ export function Layout({
         <main className="flex-1 w-full max-w-xl sm:max-w-2xl lg:max-w-3xl mx-auto px-4 py-4 sm:py-6">
           {children}
         </main>
+
+        <ApiKeyModal
+          isOpen={showApiKeyModal}
+          onClose={() => setShowApiKeyModal(false)}
+        />
       </div>
     )
   }
@@ -139,6 +161,20 @@ export function Layout({
 
               {/* Navigation Actions */}
               <div className="flex items-center gap-2">
+                {/* Mobile: Key Button 🔑 */}
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(true)}
+                  className="sm:hidden relative min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border border-[#F1D3E3] bg-white text-[#68586B] hover:text-[#BE1E72] hover:bg-pink-50 active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  title="Tetapan Kunci API Gemini"
+                  aria-label="Tetapan Kunci API Gemini"
+                >
+                  <span className="text-base" aria-hidden="true">🔑</span>
+                  {hasKey && (
+                    <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  )}
+                </button>
+
                 {/* Mobile: Question Circle Help Button (?) */}
                 {onOpenGuide && (
                   <button
@@ -172,6 +208,17 @@ export function Layout({
                       <span>Panduan</span>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyModal(true)}
+                    className="relative text-[#68586B] hover:text-[#BE1E72] hover:bg-pink-50 font-semibold px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-[#F1D3E3]"
+                  >
+                    <span className="text-xs">🔑</span>
+                    <span>Kunci API</span>
+                    {hasKey && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    )}
+                  </button>
                   <div
                     className="text-[#68586B] hover:text-[#BE1E72] font-semibold px-2.5 py-1.5 rounded-full text-xs flex items-center gap-1 cursor-default opacity-75"
                     title="Program Komuniti SULAM Universiti"
@@ -311,6 +358,11 @@ export function Layout({
           </p>
         </div>
       </footer>
+
+      <ApiKeyModal
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+      />
     </div>
   )
 }
