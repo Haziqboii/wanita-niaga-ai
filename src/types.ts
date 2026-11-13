@@ -1,4 +1,4 @@
-export type SalesChannel = 'Booth' | 'Online' | 'Lain-lain'
+export type SalesChannel = string
 
 export interface RawSale {
   produk: string
@@ -7,6 +7,13 @@ export interface RawSale {
   kos?: number | string | null
   tarikh?: string | null
   saluran?: string | null
+  // Optional Additional SME Fields (Task 6)
+  kategori?: string | null
+  kaedahBayaran?: string | null
+  lokasi?: string | null
+  idTransaksi?: string | number | null
+  masa?: string | null
+  nota?: string | null
 }
 
 export interface ValidatedSale {
@@ -17,6 +24,13 @@ export interface ValidatedSale {
   kos: number | null
   tarikh: string | null
   saluran: SalesChannel | null
+  // Optional Additional SME Fields (Task 6)
+  kategori?: string | null
+  kaedahBayaran?: string | null
+  lokasi?: string | null
+  idTransaksi?: string | null
+  masa?: string | null
+  nota?: string | null
 }
 
 export interface ColumnMapping {
@@ -26,6 +40,13 @@ export interface ColumnMapping {
   kos: string | null
   tarikh: string | null
   saluran: string | null
+  // Optional Additional SME Fields (Task 6)
+  kategori?: string | null
+  kaedahBayaran?: string | null
+  lokasi?: string | null
+  idTransaksi?: string | null
+  masa?: string | null
+  nota?: string | null
 }
 
 export interface ParseResult {
@@ -59,6 +80,21 @@ export interface TrendPoint {
   kuantiti: number
 }
 
+export interface CategoryStats {
+  kategori: string
+  kuantiti: number
+  revenue: number
+  percentage: number
+}
+
+export interface PaymentMethodStats {
+  kaedah: string
+  kuantiti: number
+  transaksi: number
+  revenue: number
+  percentage: number
+}
+
 export interface SalesResult {
   totalRevenue: number
   totalKuantiti: number
@@ -76,6 +112,11 @@ export interface SalesResult {
   highestProfit: ProductStats | null
   channels: ChannelStats[]
   trends: TrendPoint[]
+  // Optional SME Insights (Task 6)
+  categories: CategoryStats[]
+  paymentMethods: PaymentMethodStats[]
+  hasCategoryData: boolean
+  hasPaymentData: boolean
   currency: string
   recordCount: number
 }
@@ -103,3 +144,91 @@ export interface ChatMessage {
   model?: string
   suggestedFollowUps?: string[]
 }
+
+export interface MonthOption {
+  key: string
+  label: string
+  fullName: string
+  year: number
+  month: number
+}
+
+export interface MonthlyComparison {
+  currentMonthKey: string
+  currentMonthLabel: string
+  currentRevenue: number
+  currentKuantiti: number
+  previousMonthKey: string | null
+  previousMonthLabel: string | null
+  previousRevenue: number | null
+  previousKuantiti: number | null
+  diffRevenue: number | null
+  diffKuantiti: number | null
+  percentageChange: number | null
+  trend: 'increase' | 'decrease' | 'equal' | 'none'
+  summaryText: string
+  isPartialMonth?: boolean
+}
+
+export interface WeekdayStat {
+  dayIndex: number
+  nameMY: string
+  nameEN: string
+  isWeekend: boolean
+  revenue: number
+  kuantiti: number
+  recordCount: number
+  distinctDatesCount: number
+  avgRevenuePerDate: number
+}
+
+export interface WeekdayAnalytics {
+  days: WeekdayStat[]
+  highestRevenueDay: WeekdayStat | null
+  highestAvgDay: WeekdayStat | null
+  lowestRevenueDay: WeekdayStat | null
+  weekendRevenue: number
+  weekdayRevenue: number
+  weekendKuantiti: number
+  weekdayKuantiti: number
+  weekendPercentage: number
+  weekendRecordedDates: number
+  weekdayRecordedDates: number
+  avgWeekendDailyRevenue: number
+  avgWeekdayDailyRevenue: number
+  isWeekendMoreProfitable: boolean
+  hasDateData: boolean
+}
+
+export interface DailyStat {
+  tarikh: string
+  displayTarikh: string
+  weekdayMY: string
+  revenue: number
+  kuantiti: number
+  recordCount: number
+}
+
+export interface DailyAnalytics {
+  totalRecordedDates: number
+  highestRevenueDate: DailyStat | null
+  lowestRevenueDate: DailyStat | null
+  avgDailyRevenue: number
+  dateRange: { start: string; end: string } | null
+  hasDateData: boolean
+  dailyStats: DailyStat[]
+}
+
+export interface MonthSummary {
+  key: string
+  label: string
+  fullName: string
+  revenue: number
+  kuantiti: number
+  recordCount: number
+  grossProfit: number | null
+  bestSellerQty: { produk: string; kuantiti: number } | null
+  bestSellerRev: { produk: string; revenue: number } | null
+}
+
+

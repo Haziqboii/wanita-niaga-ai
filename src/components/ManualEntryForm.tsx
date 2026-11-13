@@ -353,8 +353,14 @@ export function ManualEntryForm({
                     className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs sm:text-sm text-[#28152F] bg-white focus:outline-none focus:ring-2 focus:ring-[#BE1E72]/20 focus:border-[#BE1E72]"
                   >
                     <option value="">Tiada</option>
-                    <option value="Booth">Booth / Gerai</option>
+                    <option value="Gerai">Gerai</option>
+                    <option value="Booth">Booth</option>
+                    <option value="WhatsApp">WhatsApp</option>
                     <option value="Online">Online</option>
+                    <option value="Tempahan">Tempahan</option>
+                    <option value="TikTok Shop">TikTok Shop</option>
+                    <option value="Bazar">Bazar</option>
+                    <option value="Kiosk">Kiosk</option>
                     <option value="Lain-lain">Lain-lain</option>
                   </select>
                 </div>

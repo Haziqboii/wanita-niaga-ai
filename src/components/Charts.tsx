@@ -314,10 +314,16 @@ export function AdvancedCharts({
     datasets: [
       {
         data: channelRevenues,
-        backgroundColor: ['#0D9488', '#7C3AED', '#FACC60', '#F472B6'].slice(
-          0,
-          channels.length
-        ),
+        backgroundColor: [
+          '#0D9488',
+          '#7C3AED',
+          '#EC4899',
+          '#F59E0B',
+          '#3B82F6',
+          '#10B981',
+          '#8B5CF6',
+          '#F43F5E',
+        ].slice(0, channels.length),
         borderWidth: 2,
         borderColor: '#ffffff',
       },
@@ -403,7 +409,7 @@ export function AdvancedCharts({
               <span>Perbandingan Saluran Jualan</span>
             </h4>
             <span className="text-[11px] text-[#0D9488] font-semibold">
-              Booth / Online / Lain-lain
+              {channels.length} saluran
             </span>
           </div>
           <div className="relative h-60 w-full pt-1">

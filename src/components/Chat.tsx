@@ -12,14 +12,26 @@ import {
 import {
   getAdaptiveSuggestedQuestions,
   getAssistantResponse,
+  type AssistantOptions,
 } from '../services/aiAssistant'
-import type { SalesResult, ChatMessage } from '../types'
+import type {
+  SalesResult,
+  ChatMessage,
+  MonthlyComparison,
+  MonthOption,
+  ValidatedSale,
+} from '../types'
 
 export interface ChatProps {
   result: SalesResult
   messages: ChatMessage[]
   onUpdateMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   onBack: () => void
+  allResult?: SalesResult
+  selectedPeriod?: string
+  monthlyComparison?: MonthlyComparison | null
+  availableMonths?: MonthOption[]
+  allRecords?: ValidatedSale[]
 }
 
 export function Chat({
@@ -27,12 +39,28 @@ export function Chat({
   messages,
   onUpdateMessages,
   onBack,
+  allResult,
+  selectedPeriod = 'Semua',
+  monthlyComparison = null,
+  availableMonths = [],
+  allRecords = [],
 }: ChatProps) {
   const [inputText, setInputText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [, setKeyVersion] = useState(0)
-  const hasCustomKey = typeof window !== 'undefined' ? Boolean(localStorage.getItem('user_gemini_api_key')) : false
+  const [hasSessionKey, setHasSessionKey] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/keys/status', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        setHasSessionKey(Boolean(data?.connected))
+      })
+      .catch(() => {})
+  }, [showApiKeyModal])
+
+  const hasCustomKey = hasSessionKey || (typeof window !== 'undefined' ? Boolean(localStorage.getItem('user_gemini_api_key')) : false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const adaptiveQuestions = getAdaptiveSuggestedQuestions(result)
@@ -67,7 +95,14 @@ export function Chat({
     setIsLoading(true)
 
     try {
-      const response = await getAssistantResponse(trimmed, result, messages)
+      const assistantOpts: AssistantOptions = {
+        selectedPeriod,
+        allResult,
+        monthlyComparison,
+        availableMonths,
+        allRecords,
+      }
+      const response = await getAssistantResponse(trimmed, result, messages, assistantOpts)
       const botMessage: ChatMessage = {
         id: `bot-${Date.now()}`,
         text: response.answer,
@@ -138,9 +173,16 @@ export function Chat({
             </svg>
           </button>
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-[#28152F] font-heading leading-tight">
-              Pembantu Niaga AI
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-bold text-[#28152F] font-heading leading-tight">
+                Pembantu Niaga AI
+              </h1>
+              {selectedPeriod && selectedPeriod !== 'ALL' && selectedPeriod !== 'Semua' && (
+                <span className="text-[10px] font-extrabold text-[#BE1E72] bg-[#FCE7F3] border border-[#F1D3E3] px-2 py-0.5 rounded-full">
+                  {selectedPeriod}
+                </span>
+              )}
+            </div>
             <p className="text-[11px] sm:text-xs text-[#68586B] font-body mt-0.5">
               Nasihat perniagaan ringkas dan mudah
             </p>

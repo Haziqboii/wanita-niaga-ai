@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Layout } from './components/Layout'
 import { Homepage } from './components/Homepage'
 import { StoryInputForm } from './components/StoryInputForm'
@@ -8,8 +8,20 @@ import { Dashboard } from './components/Dashboard'
 import { Chat } from './components/Chat'
 import { UserGuide } from './components/UserGuide'
 import { calculateSales, emptyResult } from './calc/sales'
+import {
+  extractAvailableMonths,
+  filterSalesByMonth,
+  calculateMonthlyComparison,
+} from './calc/monthly'
 import { validateRecords } from './data/validate'
 import { SAMPLE_SALES } from './data/sample'
+import {
+  saveReportToStorage,
+  getSavedReportFromStorage,
+  clearSavedReportFromStorage,
+  generateReportId,
+  type SaveStatus,
+} from './data/storage'
 import type { RawSale, SalesResult, ChatMessage } from './types'
 
 type Page = 'home' | 'story' | 'upload' | 'manual' | 'dashboard' | 'chat' | 'guide'
@@ -31,10 +43,112 @@ export default function App() {
   const [previousPage, setPreviousPage] = useState<Page>('home')
   const [currentRecords, setCurrentRecords] = useState<RawSale[]>([])
   const [operatingExpenses, setOperatingExpenses] = useState<number | null>(null)
+  const [selectedMonth, setSelectedMonth] = useState<string>('ALL')
   const [isSampleData, setIsSampleData] = useState<boolean>(false)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(INITIAL_CHAT_MESSAGES)
   const [storyText, setStoryText] = useState<string>('')
   const [isStoryReview, setIsStoryReview] = useState<boolean>(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [isRestored, setIsRestored] = useState<boolean>(false)
+  const [activeReportId, setActiveReportId] = useState<string>(() => generateReportId())
+  const [savedRecordCount, setSavedRecordCount] = useState<number>(0)
+
+  // 1. Initial State Restoration from IndexedDB
+  useEffect(() => {
+    let mounted = true
+    const restoreState = async () => {
+      try {
+        const saved = await getSavedReportFromStorage()
+        if (!mounted || !saved) return
+
+        if (saved.records && saved.records.length > 0) {
+          setCurrentRecords(saved.records)
+          setSavedRecordCount(saved.records.length)
+          if (saved.operatingExpenses !== undefined) {
+            setOperatingExpenses(saved.operatingExpenses)
+          }
+          if (saved.selectedMonth) {
+            setSelectedMonth(saved.selectedMonth)
+          }
+          if (saved.isSampleData !== undefined) {
+            setIsSampleData(saved.isSampleData)
+          }
+          if (saved.chatMessages && saved.chatMessages.length > 0) {
+            setChatMessages(saved.chatMessages)
+          }
+          if (saved.storyDraft?.storyText) {
+            setStoryText(saved.storyDraft.storyText)
+            setIsStoryReview(Boolean(saved.storyDraft.isStoryReview))
+          }
+          if (saved.reportId) {
+            setActiveReportId(saved.reportId)
+          }
+          if (saved.page && saved.page !== 'home') {
+            setPage(saved.page)
+          }
+        }
+      } catch (err) {
+        console.warn('Error during state restoration:', err)
+      } finally {
+        if (mounted) {
+          setIsRestored(true)
+        }
+      }
+    }
+
+    restoreState()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  // 2. Debounced Automatic Persistence
+  useEffect(() => {
+    if (!isRestored) return
+
+    const hasData = currentRecords.length > 0 || storyText.trim().length > 0
+    if (!hasData) return
+
+    setSaveStatus('saving')
+    const timer = setTimeout(async () => {
+      try {
+        const ok = await saveReportToStorage({
+          version: 1,
+          reportId: activeReportId,
+          updatedAt: new Date().toISOString(),
+          records: currentRecords,
+          operatingExpenses,
+          selectedMonth,
+          isSampleData,
+          page,
+          chatMessages,
+          storyDraft: {
+            storyText,
+            isStoryReview,
+          },
+        })
+        setSaveStatus(ok ? 'saved' : 'error')
+        if (ok) {
+          setSavedRecordCount(currentRecords.length)
+        }
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [
+    isRestored,
+    currentRecords,
+    operatingExpenses,
+    selectedMonth,
+    isSampleData,
+    page,
+    chatMessages,
+    storyText,
+    isStoryReview,
+    activeReportId,
+  ])
 
   const handleOpenGuide = () => {
     setPreviousPage(page)
@@ -45,14 +159,48 @@ export default function App() {
     setPage(previousPage)
   }
 
-  // Compute sales calculations on the fly whenever currentRecords or operatingExpenses change
-  const salesResult: SalesResult = useMemo(() => {
-    if (currentRecords.length === 0) {
+  // Validated records memoized
+  const validRecords = useMemo(() => {
+    if (currentRecords.length === 0) return []
+    const { valid } = validateRecords(currentRecords)
+    return valid
+  }, [currentRecords])
+
+  // Extract available months dynamically from actual validated dates
+  const availableMonths = useMemo(() => {
+    return extractAvailableMonths(validRecords)
+  }, [validRecords])
+
+  // Single consistent filtered dataset derived from original records
+  const filteredRecords = useMemo(() => {
+    return filterSalesByMonth(validRecords, selectedMonth)
+  }, [validRecords, selectedMonth])
+
+  // Full dataset result across all periods
+  const allSalesResult: SalesResult = useMemo(() => {
+    if (validRecords.length === 0) {
       return emptyResult()
     }
-    const { valid } = validateRecords(currentRecords)
-    return calculateSales(valid, operatingExpenses)
-  }, [currentRecords, operatingExpenses])
+    return calculateSales(validRecords, operatingExpenses)
+  }, [validRecords, operatingExpenses])
+
+  const isFilteredMonth = selectedMonth !== 'ALL' && selectedMonth !== 'semua'
+
+  // Current view calculation result (All-time or filtered month)
+  const salesResult: SalesResult = useMemo(() => {
+    if (filteredRecords.length === 0) {
+      return emptyResult()
+    }
+    // Rule 4: Do not deduct the same global operating expense from individual months without monthly attribution
+    return isFilteredMonth
+      ? calculateSales(filteredRecords, null)
+      : allSalesResult
+  }, [filteredRecords, isFilteredMonth, allSalesResult])
+
+  // Performance comparison between months
+  const monthlyComparison = useMemo(() => {
+    return calculateMonthlyComparison(validRecords, selectedMonth, availableMonths)
+  }, [validRecords, selectedMonth, availableMonths])
 
   // Confirming user records from story, upload, or manual form
   const handleConfirmData = (records: RawSale[], opex?: number | null) => {
@@ -75,10 +223,13 @@ export default function App() {
     }
 
     setCurrentRecords(records)
+    setSelectedMonth('ALL')
     if (opex !== undefined) {
       setOperatingExpenses(opex)
     }
     setIsSampleData(false)
+    setActiveReportId(generateReportId())
+    setChatMessages(INITIAL_CHAT_MESSAGES) // Start fresh AI chat for new report
     setPage('dashboard')
   }
 
@@ -94,17 +245,49 @@ export default function App() {
     }))
 
     setCurrentRecords(rawSample)
+    setSelectedMonth('ALL')
     setOperatingExpenses(null)
     setIsSampleData(true)
+    setActiveReportId(generateReportId())
+    setChatMessages(INITIAL_CHAT_MESSAGES)
     setPage('dashboard')
   }
 
-  const handleReset = () => {
-    if (confirm('Adakah anda pasti mahu memadam semua data sesi ini dan kembali ke menu utama?')) {
+  // Start fresh report with confirmation
+  const handleStartNewReport = async () => {
+    if (
+      currentRecords.length > 0 &&
+      !confirm('Adakah Puan pasti mahu memulakan laporan baharu? Data jualan tersimpan sebelum ini akan dipadam.')
+    ) {
+      return
+    }
+    await clearSavedReportFromStorage()
+    setCurrentRecords([])
+    setSelectedMonth('ALL')
+    setOperatingExpenses(null)
+    setIsSampleData(false)
+    setChatMessages(INITIAL_CHAT_MESSAGES)
+    setStoryText('')
+    setIsStoryReview(false)
+    setActiveReportId(generateReportId())
+    setSavedRecordCount(0)
+    setSaveStatus('idle')
+    setPage('home')
+  }
+
+  const handleReset = async () => {
+    if (confirm('Adakah anda pasti mahu memadam semua data sesi dan rekod tersimpan ini untuk kembali ke menu utama?')) {
+      await clearSavedReportFromStorage()
       setCurrentRecords([])
+      setSelectedMonth('ALL')
       setOperatingExpenses(null)
       setIsSampleData(false)
       setChatMessages(INITIAL_CHAT_MESSAGES)
+      setStoryText('')
+      setIsStoryReview(false)
+      setActiveReportId(generateReportId())
+      setSavedRecordCount(0)
+      setSaveStatus('idle')
       setPage('home')
     }
   }
@@ -186,6 +369,7 @@ export default function App() {
         setIsStoryReview(false)
         setPage('home')
       }}
+      saveStatus={saveStatus}
     >
       {page === 'home' && (
         <Homepage
@@ -194,6 +378,10 @@ export default function App() {
           onManual={() => setPage('manual')}
           onSample={handleLoadSample}
           onOpenGuide={handleOpenGuide}
+          hasSavedReport={savedRecordCount > 0}
+          savedRecordCount={savedRecordCount}
+          onResumeSavedReport={() => setPage('dashboard')}
+          onStartNewReport={handleStartNewReport}
         />
       )}
 
@@ -226,6 +414,13 @@ export default function App() {
       {page === 'dashboard' && (
         <Dashboard
           result={salesResult}
+          allResult={allSalesResult}
+          allRecords={validRecords}
+          reportId={activeReportId}
+          selectedMonth={selectedMonth}
+          onSelectMonth={setSelectedMonth}
+          availableMonths={availableMonths}
+          monthlyComparison={monthlyComparison}
           operatingExpenses={operatingExpenses}
           onUpdateOperatingExpenses={(val) => setOperatingExpenses(val)}
           onEdit={() => setPage('manual')}
@@ -238,6 +433,15 @@ export default function App() {
       {page === 'chat' && (
         <Chat
           result={salesResult}
+          allResult={allSalesResult}
+          selectedPeriod={
+            selectedMonth === 'ALL' || selectedMonth === 'semua'
+              ? 'Semua'
+              : availableMonths.find((m) => m.key === selectedMonth)?.label || selectedMonth
+          }
+          monthlyComparison={monthlyComparison}
+          availableMonths={availableMonths}
+          allRecords={validRecords}
           messages={chatMessages}
           onUpdateMessages={setChatMessages}
           onBack={() => setPage('dashboard')}

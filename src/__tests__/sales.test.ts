@@ -1,9 +1,18 @@
 import { describe, it, expect } from 'vitest'
+import path from 'path'
+import fs from 'fs'
+import * as XLSX from 'xlsx'
 import { calculateSales, toCents, fromCents } from '../calc/sales'
-import { validateSale, validateRecords, normalizeDate, formatRM, formatDateMY } from '../data/validate'
+import {
+  validateSale,
+  validateRecords,
+  normalizeDate,
+  formatRM,
+  formatDateMY,
+} from '../data/validate'
 import { autoDetectMapping, applyMapping, findHeaderRowIndex } from '../data/parse'
 import { SAMPLE_SALES } from '../data/sample'
-import { getAssistantResponse } from '../services/aiAssistant'
+import { getAssistantResponse, tryLocalCalculation } from '../services/aiAssistant'
 import type { RawSale, ValidatedSale } from '../types'
 
 describe('Wanita Niaga AI - Phase 1 Test Suite', () => {
@@ -408,5 +417,227 @@ describe('Wanita Niaga AI - Phase 1 Test Suite', () => {
 
     expect(valid[6].harga).toBe(30.0) // Non-breaking space
     expect(valid[6].kos).toBe(15.0)
+  })
+
+  // Scenario 15: 1,000-Row SME Excel Dataset Regression Verification
+  it('Scenario 15: Ingests 1,000-row SME Excel dataset with 100% acceptance and preserves all 5 channels', () => {
+    const fixturePath = path.resolve(process.cwd(), 'src/__tests__/fixtures/Wanita_Niaga_AI_1000_Rekod_Jualan_SME_Sep_Okt_2026.xlsx')
+    const buf = fs.readFileSync(fixturePath)
+    const wb = XLSX.read(buf, { type: 'buffer' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    const rows: any[][] = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      defval: '',
+      raw: false,
+    })
+
+    const headerRowIdx = findHeaderRowIndex(rows)
+    const headers = rows[headerRowIdx].map((h: any) => String(h).trim()).filter(Boolean)
+    const mapping = autoDetectMapping(headers)
+
+    const rawRows: Record<string, unknown>[] = []
+    for (let i = headerRowIdx + 1; i < rows.length; i++) {
+      const rowData = rows[i]
+      if (!rowData || rowData.length === 0) continue
+      const obj: Record<string, unknown> = {}
+      headers.forEach((h, idx) => {
+        obj[h] = rowData[idx] ?? ''
+      })
+      rawRows.push(obj)
+    }
+
+    const { records, skippedRows } = applyMapping(rawRows, mapping)
+    expect(skippedRows).toBe(0)
+    expect(records.length).toBe(1000)
+
+    const { valid, invalid, allIssues } = validateRecords(records)
+    // 1. All 1,000 rows accepted, 0 rejected
+    expect(invalid.length).toBe(0)
+    expect(allIssues.length).toBe(0)
+    expect(valid.length).toBe(1000)
+
+    // Calculate metrics
+    const result = calculateSales(valid)
+
+    // 2. Exact Totals
+    expect(result.totalRevenue).toBe(33382.1)
+    expect(result.totalKuantiti).toBe(8549)
+    expect(result.grossProfit).toBe(18699.2)
+    expect(result.products.length).toBe(16)
+
+    // 3. Best Seller by volume
+    expect(result.bestSeller?.produk).toBe('Karipap')
+    expect(result.bestSeller?.kuantiti).toBe(1573)
+
+    // 4. Preserve all 5 distinct channels with exact expected revenues
+    expect(result.hasChannelData).toBe(true)
+    expect(result.channels.length).toBe(5)
+
+    const channelMap = new Map(result.channels.map((c) => [c.saluran, c.revenue]))
+    expect(channelMap.get('Gerai')).toBe(14698.7)
+    expect(channelMap.get('WhatsApp')).toBe(6289.9)
+    expect(channelMap.get('Booth')).toBe(4208.4)
+    expect(channelMap.get('Online')).toBe(2268.7)
+    expect(channelMap.get('Tempahan')).toBe(5916.4)
+  })
+
+  // Scenario 16: Preserves Unknown vs Zero Cost & Rejection of Invalid Records
+  it('Scenario 16: Correctly distinguishes unknown cost from explicit zero cost and rejects genuinely invalid records', () => {
+    const mixedRecords: RawSale[] = [
+      // Explicit zero costs
+      { produk: 'Kek Pisang', kuantiti: '10', harga: '5.00', kos: '0' },
+      { produk: 'Kek Coklat', kuantiti: '5', harga: '10.00', kos: '0.00' },
+      { produk: 'Kek Batik', kuantiti: '8', harga: '8.00', kos: 'RM 0.00' },
+      { produk: 'Donut', kuantiti: '12', harga: '2.00', kos: 'RM -' },
+
+      // Unknown / missing optional costs
+      { produk: 'Karipap', kuantiti: '20', harga: '2.00', kos: '-' },
+      { produk: 'Popia', kuantiti: '15', harga: '1.50', kos: '--' },
+      { produk: 'Samosa', kuantiti: '10', harga: '2.50', kos: 'N/A' },
+      { produk: 'Roti Jala', kuantiti: '6', harga: '6.00', kos: '' },
+
+      // Invalid rows
+      { produk: '', kuantiti: '10', harga: '5.00', kos: '2.00' }, // missing product name
+      { produk: 'Mee Rebus', kuantiti: '-5', harga: '7.00', kos: '3.00' }, // negative quantity
+      { produk: 'Laksa', kuantiti: '10', harga: 'bukan_harga', kos: '3.00' }, // invalid price
+      { produk: 'Nasi Minyak', kuantiti: '10', harga: '10.00', kos: 'kos_rosak' }, // invalid cost text
+      {
+        produk: 'Pulut Inti',
+        kuantiti: '5',
+        harga: '3.00',
+        saluran: 'Saluran yang terlampau panjang dan melebihi lima puluh aksara untuk menguji had validasi saluran jualan',
+      }, // channel > 50 chars
+    ]
+
+    const { valid, invalid } = validateRecords(mixedRecords)
+
+    // First 8 rows are valid
+    expect(valid.length).toBe(8)
+    // Last 5 rows are invalid
+    expect(invalid.length).toBe(5)
+
+    // Explicit zero costs are 0
+    expect(valid[0].kos).toBe(0)
+    expect(valid[1].kos).toBe(0)
+    expect(valid[2].kos).toBe(0)
+    expect(valid[3].kos).toBe(0)
+
+    // Unknown costs are null
+    expect(valid[4].kos).toBe(null)
+    expect(valid[5].kos).toBe(null)
+    expect(valid[6].kos).toBe(null)
+    expect(valid[7].kos).toBe(null)
+
+    // Verify invalid rows issues
+    expect(invalid[0].issues.some((i) => i.field === 'produk')).toBe(true)
+    expect(invalid[1].issues.some((i) => i.field === 'kuantiti')).toBe(true)
+    expect(invalid[2].issues.some((i) => i.field === 'harga')).toBe(true)
+    expect(invalid[3].issues.some((i) => i.field === 'kos')).toBe(true)
+    expect(invalid[4].issues.some((i) => i.field === 'saluran')).toBe(true)
+  })
+
+  // Scenario 17: Local Intent Hierarchy & Multilingual Matching (Task 2)
+  it('Scenario 17: Intent hierarchy correctly routes product rankings, metrics, Manglish and advice questions', () => {
+    // Load 1,000-row SME dataset
+    const fixturePath = path.resolve(process.cwd(), 'src/__tests__/fixtures/Wanita_Niaga_AI_1000_Rekod_Jualan_SME_Sep_Okt_2026.xlsx')
+    const buf = fs.readFileSync(fixturePath)
+    const wb = XLSX.read(buf, { type: 'buffer' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false })
+    const headerRowIdx = findHeaderRowIndex(rows)
+    const headers = rows[headerRowIdx].map((h: any) => String(h).trim()).filter(Boolean)
+    const mapping = autoDetectMapping(headers)
+    const rawRows: Record<string, unknown>[] = []
+    for (let i = headerRowIdx + 1; i < rows.length; i++) {
+      const rowData = rows[i]
+      if (!rowData || rowData.length === 0) continue
+      const obj: Record<string, unknown> = {}
+      headers.forEach((h, idx) => { obj[h] = rowData[idx] ?? '' })
+      rawRows.push(obj)
+    }
+    const { records } = applyMapping(rawRows, mapping)
+    const { valid } = validateRecords(records)
+    const result = calculateSales(valid) // operating expenses is null initially
+
+    // 1. Distinction: Highest Revenue Product vs Best Seller by Quantity
+    // A2: Highest Revenue Product (Brownies, RM4,928.00)
+    const ansRevMalay = tryLocalCalculation('Produk mana menghasilkan jumlah jualan paling tinggi?', result)
+    expect(ansRevMalay).toContain('Brownies')
+    expect(ansRevMalay).toContain('RM4,928.00')
+
+    const ansRevManglish = tryLocalCalculation('produk apa got the highest sales?', result)
+    expect(ansRevManglish).toContain('Brownies')
+    expect(ansRevManglish).toContain('RM4,928.00')
+
+    const ansRevEnglish = tryLocalCalculation('Which product generated the most RM?', result)
+    expect(ansRevEnglish).toContain('Brownies')
+
+    // A1: Best Seller by Quantity (Karipap, 1,573 unit)
+    const ansQtyMalay = tryLocalCalculation('Produk mana paling laris?', result)
+    expect(ansQtyMalay).toContain('Karipap')
+    expect(ansQtyMalay).toContain('1,573 unit')
+
+    const ansQtyEnglish = tryLocalCalculation('Which product sold the most units?', result)
+    expect(ansQtyEnglish).toContain('Karipap')
+    expect(ansQtyEnglish).toContain('1,573 unit')
+
+    const ansQtyManglish = tryLocalCalculation('Which product paling banyak terjual?', result)
+    expect(ansQtyManglish).toContain('Karipap')
+
+    // A3: Highest Profit Product
+    const ansProfit = tryLocalCalculation('Produk mana paling untung?', result)
+    expect(ansProfit).toContain('keuntungan')
+    expect(ansProfit).toContain(result.highestProfit?.produk || '')
+
+    // A4: Specific Named Product Inquiries
+    const ansNamedQty = tryLocalCalculation('Karipap sold how many?', result)
+    expect(ansNamedQty).toContain('1,573 unit')
+    expect(ansNamedQty).toContain('Karipap')
+
+    const ansNamedProfit = tryLocalCalculation('How much profit did Brownies make?', result)
+    expect(ansNamedProfit).toContain('Brownies')
+    expect(ansNamedProfit).toContain('untung kasar')
+
+    // B1: Total Business Revenue (Malay, Manglish, English)
+    const ansTotalMalay = tryLocalCalculation('Berapakah jumlah jualan saya?', result)
+    expect(ansTotalMalay).toContain('RM33,382.10')
+    expect(ansTotalMalay).toContain('8,549 unit')
+
+    const ansTotalManglish = tryLocalCalculation('Berapa total sales saya?', result)
+    expect(ansTotalManglish).toContain('RM33,382.10')
+
+    const ansTotalStore = tryLocalCalculation('Berapa total sales kedai saya?', result)
+    expect(ansTotalStore).toContain('RM33,382.10')
+
+    // B2: Total Units Sold
+    const ansTotalUnits = tryLocalCalculation('Berapa unit terjual overall?', result)
+    expect(ansTotalUnits).toContain('8,549 unit')
+
+    // B3: Gross Profit
+    const ansGrossProfit = tryLocalCalculation('Untung kasar saya berapa?', result)
+    expect(ansGrossProfit).toContain('RM18,699.20')
+
+    // B4: Estimated Net Profit (when opex is missing vs present)
+    const ansNetMissing = tryLocalCalculation('Berapa untung bersih?', result)
+    expect(ansNetMissing).toContain('perbelanjaan operasi') // explains requirement
+
+    const resultWithOpex = calculateSales(valid, 3000)
+    const ansNetPresent = tryLocalCalculation('Berapa untung bersih?', resultWithOpex)
+    expect(ansNetPresent).toContain('RM15,699.20') // 18699.20 - 3000
+
+    // B5: Product Count
+    const ansCount = tryLocalCalculation('Berapa jenis produk saya ada?', result)
+    expect(ansCount).toContain('16 jenis produk')
+
+    // Priority C: Advice and Qualitative questions MUST return null to trigger Gemini fallback
+    expect(tryLocalCalculation('How can I increase sales?', result)).toBe(null)
+    expect(tryLocalCalculation('Why are my sales low?', result)).toBe(null)
+    expect(tryLocalCalculation('Bagaimana nak tingkatkan jualan bulan depan?', result)).toBe(null)
+    expect(tryLocalCalculation('Cadangan untuk produk laris', result)).toBe(null)
+
+    // Empty dataset handling
+    const emptyResult = calculateSales([])
+    const ansEmpty = tryLocalCalculation('Berapa total sales saya?', emptyResult)
+    expect(ansEmpty).toContain('Tiada rekod data jualan')
   })
 })

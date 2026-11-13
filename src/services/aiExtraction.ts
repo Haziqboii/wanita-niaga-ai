@@ -44,6 +44,7 @@ export async function extractSalesFromStory(
     const response = await fetch('/api/extract', {
       method: 'POST',
       headers,
+      credentials: 'same-origin',
       body: JSON.stringify({ story: trimmed, sessionId }),
       signal: controller.signal,
     })

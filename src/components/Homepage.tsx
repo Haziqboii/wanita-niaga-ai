@@ -15,11 +15,63 @@ export interface HomepageProps {
   onManual: () => void
   onSample: () => void
   onOpenGuide?: () => void
+  hasSavedReport?: boolean
+  savedRecordCount?: number
+  onResumeSavedReport?: () => void
+  onStartNewReport?: () => void
 }
 
-export function Homepage({ onStory, onUpload, onManual, onSample, onOpenGuide }: HomepageProps) {
+export function Homepage({
+  onStory,
+  onUpload,
+  onManual,
+  onSample,
+  onOpenGuide,
+  hasSavedReport = false,
+  savedRecordCount = 0,
+  onResumeSavedReport,
+  onStartNewReport,
+}: HomepageProps) {
   return (
     <div className="space-y-4 sm:space-y-5">
+      {/* Returning User Notification Banner */}
+      {hasSavedReport && (
+        <section
+          aria-label="Sambung Laporan Tersimpan"
+          className="bg-white border-2 border-[#BE1E72]/40 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-pink-100 flex items-center justify-center shrink-0 text-xl shadow-2xs">
+              👋
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-[#28152F] flex items-center gap-1.5">
+                <span>Selamat kembali, Puan!</span>
+              </h2>
+              <p className="text-xs text-[#68586B]">
+                Puan mempunyai laporan jualan tersimpan ({savedRecordCount} rekod jualan).
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={onResumeSavedReport}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 bg-[#BE1E72] hover:bg-[#A3165F] text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-2xs transition-all cursor-pointer min-h-[40px]"
+            >
+              <span>Sambung Laporan</span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button
+              type="button"
+              onClick={onStartNewReport}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 bg-white border border-[#F1D3E3] text-[#68586B] hover:text-[#BE1E72] hover:bg-pink-50 font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all cursor-pointer min-h-[40px]"
+            >
+              Mulakan Laporan Baharu
+            </button>
+          </div>
+        </section>
+      )}
       {/* ========================================================
           SECTION B: Hero Banner ("Hai Puan! Jom semak jualan. ♡")
           - Desktop / Laptop: hero-banner-desktop.jpg

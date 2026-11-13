@@ -111,9 +111,10 @@ PERATURAN EKSTRAK (SANGAT KETAT):
 
 export async function handleExtraction(
   storyText: string,
-  clientIp = 'default'
+  clientIp = 'default',
+  apiKeyOverride?: string | null
 ): Promise<ExtractionResultPayload> {
-  const apiKey = getGeminiApiKey()
+  const apiKey = getGeminiApiKey(apiKeyOverride)
   if (!apiKey) {
     return {
       success: false,

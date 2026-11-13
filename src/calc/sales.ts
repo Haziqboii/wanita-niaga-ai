@@ -4,6 +4,8 @@ import type {
   ProductStats,
   ChannelStats,
   TrendPoint,
+  CategoryStats,
+  PaymentMethodStats,
 } from '../types'
 import { formatDateMY } from '../data/validate'
 
@@ -42,9 +44,13 @@ export function calculateSales(
   const productMap = new Map<string, ProductAccumulator>()
   const channelMap = new Map<string, { kuantiti: number; revenueCents: number }>()
   const trendMap = new Map<string, { kuantiti: number; revenueCents: number }>()
+  const categoryMap = new Map<string, { kuantiti: number; revenueCents: number }>()
+  const paymentMap = new Map<string, { kuantiti: number; transaksi: number; revenueCents: number }>()
 
   let hasDateData = false
   let hasChannelData = false
+  let hasCategoryData = false
+  let hasPaymentData = false
 
   for (const s of sales) {
     // 1. Calculate record revenue in integer cents
@@ -117,6 +123,40 @@ export function calculateSales(
         })
       }
     }
+
+    // 6. Category aggregation (Optional SME Field)
+    if (s.kategori && s.kategori.trim()) {
+      hasCategoryData = true
+      const catKey = s.kategori.trim()
+      const existingCat = categoryMap.get(catKey)
+      if (existingCat) {
+        existingCat.kuantiti += s.kuantiti
+        existingCat.revenueCents += recordRevenueCents
+      } else {
+        categoryMap.set(catKey, {
+          kuantiti: s.kuantiti,
+          revenueCents: recordRevenueCents,
+        })
+      }
+    }
+
+    // 7. Payment Method aggregation (Optional SME Field)
+    if (s.kaedahBayaran && s.kaedahBayaran.trim()) {
+      hasPaymentData = true
+      const payKey = s.kaedahBayaran.trim()
+      const existingPay = paymentMap.get(payKey)
+      if (existingPay) {
+        existingPay.kuantiti += s.kuantiti
+        existingPay.transaksi += 1
+        existingPay.revenueCents += recordRevenueCents
+      } else {
+        paymentMap.set(payKey, {
+          kuantiti: s.kuantiti,
+          transaksi: 1,
+          revenueCents: recordRevenueCents,
+        })
+      }
+    }
   }
 
   // Finalize product stats
@@ -138,15 +178,23 @@ export function calculateSales(
     }
   })
 
-  // Sort products by revenue descending
-  products.sort((a, b) => b.revenue - a.revenue)
+  // Sort products by revenue descending (with deterministic tie-breakers: higher quantity, then alphabetical)
+  products.sort(
+    (a, b) => b.revenue - a.revenue || b.kuantiti - a.kuantiti || a.produk.localeCompare(b.produk)
+  )
 
-  // Best seller by quantity (highest quantity sold)
+  // Best seller by quantity (highest quantity sold) with deterministic tie-breaker (higher revenue, then alphabetical)
   let bestSeller: ProductStats | null = null
   if (products.length > 0) {
-    bestSeller = products.reduce((prev, curr) =>
-      curr.kuantiti > prev.kuantiti ? curr : prev
-    )
+    bestSeller = products.reduce((prev, curr) => {
+      if (curr.kuantiti > prev.kuantiti) return curr
+      if (curr.kuantiti === prev.kuantiti) {
+        if (curr.revenue > prev.revenue) return curr
+        if (curr.revenue < prev.revenue) return prev
+        return curr.produk.localeCompare(prev.produk) < 0 ? curr : prev
+      }
+      return prev
+    })
   }
 
   // Highest revenue product
@@ -197,6 +245,39 @@ export function calculateSales(
   )
   channels.sort((a, b) => b.revenue - a.revenue)
 
+  // Category statistics (Optional SME Insights)
+  const categories: CategoryStats[] = Array.from(categoryMap.entries()).map(
+    ([kategori, data]) => {
+      const revenue = fromCents(data.revenueCents)
+      const totalRev = fromCents(totalRevenueCents)
+      const percentage = totalRev > 0 ? (revenue / totalRev) * 100 : 0
+      return {
+        kategori,
+        kuantiti: data.kuantiti,
+        revenue,
+        percentage,
+      }
+    }
+  )
+  categories.sort((a, b) => b.revenue - a.revenue)
+
+  // Payment method statistics (Optional SME Insights)
+  const paymentMethods: PaymentMethodStats[] = Array.from(paymentMap.entries()).map(
+    ([kaedah, data]) => {
+      const revenue = fromCents(data.revenueCents)
+      const totalRev = fromCents(totalRevenueCents)
+      const percentage = totalRev > 0 ? (revenue / totalRev) * 100 : 0
+      return {
+        kaedah,
+        kuantiti: data.kuantiti,
+        transaksi: data.transaksi,
+        revenue,
+        percentage,
+      }
+    }
+  )
+  paymentMethods.sort((a, b) => b.revenue - a.revenue)
+
   // Trend statistics (sorted chronologically)
   const trends: TrendPoint[] = Array.from(trendMap.entries())
     .map(([tarikh, data]) => ({
@@ -224,6 +305,10 @@ export function calculateSales(
     highestProfit,
     channels,
     trends,
+    categories,
+    paymentMethods,
+    hasCategoryData,
+    hasPaymentData,
     currency: 'RM',
     recordCount: sales.length,
   }
@@ -241,6 +326,10 @@ export function emptyResult(): SalesResult {
     costComplete: false,
     hasDateData: false,
     hasChannelData: false,
+    categories: [],
+    paymentMethods: [],
+    hasCategoryData: false,
+    hasPaymentData: false,
     products: [],
     bestSeller: null,
     highestRevenue: null,

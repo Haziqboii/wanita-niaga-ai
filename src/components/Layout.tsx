@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ApiKeyModal } from './ApiKeyModal'
 import {
   BookOpenIcon,
@@ -9,6 +9,7 @@ import {
   InfoIcon,
   ArrowLeftIcon,
 } from './ui/Icons'
+import type { SaveStatus } from '../data/storage'
 
 export interface LayoutProps {
   children: React.ReactNode
@@ -23,6 +24,7 @@ export interface LayoutProps {
   isInnerBerryPop?: boolean
   hideHeader?: boolean
   onNavHome?: () => void
+  saveStatus?: SaveStatus
 }
 
 export function Layout({
@@ -38,9 +40,21 @@ export function Layout({
   isInnerBerryPop = false,
   hideHeader = false,
   onNavHome,
+  saveStatus = 'idle',
 }: LayoutProps) {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
-  const hasKey = typeof window !== 'undefined' ? Boolean(localStorage.getItem('user_gemini_api_key')) : false
+  const [hasSessionKey, setHasSessionKey] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/keys/status', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        setHasSessionKey(Boolean(data?.connected))
+      })
+      .catch(() => {})
+  }, [showApiKeyModal])
+
+  const hasKey = hasSessionKey || (typeof window !== 'undefined' ? Boolean(localStorage.getItem('user_gemini_api_key')) : false)
   // If on Story Input / Review / Upload / Manual / Dashboard: Berry Pop inner page layout matching reference images
   if (isStory || isInnerBerryPop) {
     return (
@@ -77,6 +91,29 @@ export function Layout({
 
                 {/* Right Side: Step Indicator or Actions */}
                 <div className="flex items-center gap-2">
+                  {saveStatus && saveStatus !== 'idle' && (
+                    <div className="flex items-center">
+                      {saveStatus === 'saving' && (
+                        <span className="text-[10px] sm:text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-medium shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          <span>Menyimpan...</span>
+                        </span>
+                      )}
+                      {saveStatus === 'saved' && (
+                        <span className="text-[10px] sm:text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-medium shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span>Disimpan</span>
+                        </span>
+                      )}
+                      {saveStatus === 'error' && (
+                        <span className="text-[10px] sm:text-xs text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-medium shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          <span>Gagal disimpan</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => setShowApiKeyModal(true)}

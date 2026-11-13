@@ -7,6 +7,7 @@ export interface PDFExportOptions {
   operatingExpenses: number | null
   barChartCanvasId?: string
   doughnutChartCanvasId?: string
+  periodLabel?: string
 }
 
 /**
@@ -18,6 +19,7 @@ export async function exportDashboardToPDF({
   operatingExpenses,
   barChartCanvasId = 'chart-product-bar',
   doughnutChartCanvasId = 'chart-product-doughnut',
+  periodLabel = 'Semua',
 }: PDFExportOptions): Promise<boolean> {
   try {
     const doc = new jsPDF({
@@ -57,12 +59,17 @@ export async function exportDashboardToPDF({
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(31, 41, 55)
-    doc.text('LAPORAN PRESTASI JUALAN', pageWidth - margin, 17, { align: 'right' })
+    const titleText =
+      periodLabel && periodLabel !== 'Semua' && periodLabel !== 'ALL'
+        ? `LAPORAN PRESTASI JUALAN (${periodLabel.toUpperCase()})`
+        : 'LAPORAN PRESTASI JUALAN'
+    doc.text(titleText, pageWidth - margin, 17, { align: 'right' })
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(107, 114, 128)
-    doc.text(`Tarikh: ${dateFormatted}`, pageWidth - margin, 22, { align: 'right' })
+    const periodDisplay = periodLabel && periodLabel !== 'ALL' ? periodLabel : 'Semua Rekod'
+    doc.text(`Tarikh: ${dateFormatted} | Tempoh: ${periodDisplay}`, pageWidth - margin, 22, { align: 'right' })
 
     // Header divider line
     doc.setDrawColor(229, 231, 235)
@@ -82,11 +89,17 @@ export async function exportDashboardToPDF({
     let profitValue = 'Kos Diperlukan'
     let profitSub = 'Kos seunit belum lengkap'
 
+    const isFilteredMonth = Boolean(periodLabel && periodLabel !== 'Semua' && periodLabel !== 'ALL')
+
     if (result.costComplete && result.grossProfit !== null) {
-      if (operatingExpenses !== null && result.estimatedNetProfit !== null) {
+      if (!isFilteredMonth && operatingExpenses !== null && result.estimatedNetProfit !== null) {
         profitLabel = 'UNTUNG BERSIH'
         profitValue = formatRM(result.estimatedNetProfit)
         profitSub = `Tolak Kos Operasi ${formatRM(operatingExpenses)}`
+      } else if (isFilteredMonth && operatingExpenses !== null) {
+        profitLabel = 'UNTUNG KASAR'
+        profitValue = formatRM(result.grossProfit)
+        profitSub = 'Opex belum diagihkan bulanan'
       } else {
         profitLabel = 'UNTUNG KASAR'
         profitValue = formatRM(result.grossProfit)
@@ -112,9 +125,15 @@ export async function exportDashboardToPDF({
         titleColor: [13, 148, 136] as [number, number, number],
       },
       {
-        label: 'PALING LARIS',
+        label: 'PALING BANYAK TERJUAL',
         value: result.bestSeller ? result.bestSeller.produk : '-',
-        sub: result.bestSeller ? `${result.bestSeller.kuantiti} unit terjual` : 'Tiada data',
+        sub: result.bestSeller
+          ? `${result.bestSeller.kuantiti.toLocaleString()} unit${
+              result.highestRevenue && result.highestRevenue.produk !== result.bestSeller.produk
+                ? ` (Top RM: ${result.highestRevenue.produk})`
+                : ''
+            }`
+          : 'Tiada data',
         bg: [255, 251, 235] as [number, number, number],
         border: [254, 243, 199] as [number, number, number],
         titleColor: [180, 83, 9] as [number, number, number],

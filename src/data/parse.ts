@@ -81,11 +81,85 @@ const SALURAN_ALIASES = [
   'channel',
   'sales channel',
   'platform',
-  'tempat',
-  'lokasi',
   'source',
   'kaedah jualan',
   'cara jualan',
+]
+
+const KATEGORI_ALIASES = [
+  'kategori',
+  'category',
+  'kategori produk',
+  'product category',
+  'jenis',
+  'jenis produk',
+  'kumpulan',
+  'group',
+]
+
+const KAEDAH_BAYARAN_ALIASES = [
+  'kaedah bayaran',
+  'cara bayaran',
+  'payment method',
+  'payment',
+  'kaedah pembayaran',
+  'cara bayar',
+  'jenis bayaran',
+  'payment type',
+  'mode of payment',
+  'cara pembayaran',
+]
+
+const LOKASI_ALIASES = [
+  'lokasi',
+  'location',
+  'lokasi jualan',
+  'sales location',
+  'tempat',
+  'venue',
+  'tapak',
+  'cawangan',
+  'branch',
+]
+
+const ID_TRANSAKSI_ALIASES = [
+  'id jualan',
+  'id transaksi',
+  'transaction id',
+  'invoice no',
+  'no invois',
+  'invoice',
+  'invois',
+  'receipt no',
+  'no resit',
+  'receipt',
+  'resit',
+  'order id',
+  'no pesanan',
+  'ref no',
+  'reference',
+  'id',
+]
+
+const MASA_ALIASES = [
+  'masa',
+  'time',
+  'waktu',
+  'jam',
+  'transaction time',
+  'sales time',
+  'masa jualan',
+  'masa transaksi',
+]
+
+const NOTA_ALIASES = [
+  'nota',
+  'notes',
+  'catatan',
+  'remarks',
+  'keterangan tambahan',
+  'note',
+  'ulasan',
 ]
 
 function findBestHeaderMatch(headers: string[], aliases: string[]): string | null {
@@ -115,6 +189,13 @@ export function autoDetectMapping(headers: string[]): ColumnMapping {
     kos: findBestHeaderMatch(headers, KOS_ALIASES),
     tarikh: findBestHeaderMatch(headers, TARIKH_ALIASES),
     saluran: findBestHeaderMatch(headers, SALURAN_ALIASES),
+    // Optional SME columns
+    kategori: findBestHeaderMatch(headers, KATEGORI_ALIASES),
+    kaedahBayaran: findBestHeaderMatch(headers, KAEDAH_BAYARAN_ALIASES),
+    lokasi: findBestHeaderMatch(headers, LOKASI_ALIASES),
+    idTransaksi: findBestHeaderMatch(headers, ID_TRANSAKSI_ALIASES),
+    masa: findBestHeaderMatch(headers, MASA_ALIASES),
+    nota: findBestHeaderMatch(headers, NOTA_ALIASES),
   }
 }
 
@@ -140,6 +221,12 @@ export function applyMapping(
     const kosStr = getCellValue(row, mapping.kos)
     const tarikhStr = getCellValue(row, mapping.tarikh)
     const saluranStr = getCellValue(row, mapping.saluran)
+    const kategoriStr = getCellValue(row, mapping.kategori ?? null)
+    const kaedahBayaranStr = getCellValue(row, mapping.kaedahBayaran ?? null)
+    const lokasiStr = getCellValue(row, mapping.lokasi ?? null)
+    const idTransaksiStr = getCellValue(row, mapping.idTransaksi ?? null)
+    const masaStr = getCellValue(row, mapping.masa ?? null)
+    const notaStr = getCellValue(row, mapping.nota ?? null)
 
     // Skip purely empty rows
     if (!produk && !kuantitiStr && !hargaStr && !kosStr) {
@@ -169,6 +256,12 @@ export function applyMapping(
       kos: kosStr !== null ? kosStr : null,
       tarikh: tarikhStr || null,
       saluran: saluranStr || null,
+      kategori: kategoriStr || null,
+      kaedahBayaran: kaedahBayaranStr || null,
+      lokasi: lokasiStr || null,
+      idTransaksi: idTransaksiStr || null,
+      masa: masaStr || null,
+      nota: notaStr || null,
     })
   }
 

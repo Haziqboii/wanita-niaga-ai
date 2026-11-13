@@ -6,6 +6,8 @@ import {
   LockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from './ui/Icons'
 import {
   parseCSV,
@@ -13,7 +15,7 @@ import {
   isValidFile,
   applyMapping,
 } from '../data/parse'
-import { validateRecords, formatRM, formatDateMY, parseCurrency, parseQuantity } from '../data/validate'
+import { validateRecords, formatRM, formatDateMY, parseCurrency, parseQuantity, normalizeDate, normalizeChannel } from '../data/validate'
 import type { RawSale, ColumnMapping } from '../types'
 
 export interface UploadFormProps {
@@ -35,10 +37,21 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
   })
   const [fileError, setFileError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState<boolean>(false)
+  const [showExtraMapping, setShowExtraMapping] = useState<boolean>(false)
 
   // Derive mapped records and validation on the fly from rawRows + current mapping
   const { records: mappedRecords } = applyMapping(rawRows, mapping)
   const { valid, invalid } = validateRecords(mappedRecords)
+
+  // Count detected optional columns
+  const mappedExtraCount = [
+    mapping.kategori,
+    mapping.kaedahBayaran,
+    mapping.lokasi,
+    mapping.idTransaksi,
+    mapping.masa,
+    mapping.nota,
+  ].filter(Boolean).length
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null
@@ -113,7 +126,7 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
       return
     }
 
-    // Pass valid records (ensuring clean data)
+    // Pass valid records (ensuring clean data with optional fields preserved)
     const validRawSales: RawSale[] = valid.map((v) => ({
       produk: v.produk,
       kuantiti: v.kuantiti,
@@ -121,6 +134,12 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
       kos: v.kos,
       tarikh: v.tarikh,
       saluran: v.saluran,
+      kategori: v.kategori,
+      kaedahBayaran: v.kaedahBayaran,
+      lokasi: v.lokasi,
+      idTransaksi: v.idTransaksi,
+      masa: v.masa,
+      nota: v.nota,
     }))
 
     onConfirm(validRawSales)
@@ -403,6 +422,141 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
                 </select>
               </div>
             </div>
+
+            {/* Collapsible Section: Maklumat Tambahan (Pilihan) */}
+            <div className="pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowExtraMapping(!showExtraMapping)}
+                className="w-full flex items-center justify-between py-1 text-left text-xs font-bold text-[#BE1E72] hover:text-[#A3165F] transition-colors cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span>✨ Maklumat Tambahan (Pilihan)</span>
+                  {mappedExtraCount > 0 && (
+                    <span className="bg-pink-100 text-[#BE1E72] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {mappedExtraCount} kolum dikesan
+                    </span>
+                  )}
+                </span>
+                {showExtraMapping ? (
+                  <ChevronUpIcon className="w-4 h-4 text-[#BE1E72]" />
+                ) : (
+                  <ChevronDownIcon className="w-4 h-4 text-[#BE1E72]" />
+                )}
+              </button>
+
+              {showExtraMapping && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs sm:text-sm animate-fadeIn">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#28152F] mb-1">
+                      Kategori Produk (Pilihan)
+                    </label>
+                    <select
+                      value={mapping.kategori || ''}
+                      onChange={(e) => handleMappingChange('kategori', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs text-[#28152F] bg-white focus:outline-none focus:ring-2 focus:ring-[#BE1E72]/20 focus:border-[#BE1E72]"
+                    >
+                      <option value="">-- Tiada / Bukan dalam fail --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#28152F] mb-1">
+                      Kaedah Bayaran (Pilihan)
+                    </label>
+                    <select
+                      value={mapping.kaedahBayaran || ''}
+                      onChange={(e) => handleMappingChange('kaedahBayaran', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs text-[#28152F] bg-white focus:outline-none focus:ring-2 focus:ring-[#BE1E72]/20 focus:border-[#BE1E72]"
+                    >
+                      <option value="">-- Tiada / Bukan dalam fail --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#28152F] mb-1">
+                      Lokasi Jualan (Pilihan)
+                    </label>
+                    <select
+                      value={mapping.lokasi || ''}
+                      onChange={(e) => handleMappingChange('lokasi', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs text-[#28152F] bg-white focus:outline-none focus:ring-2 focus:ring-[#BE1E72]/20 focus:border-[#BE1E72]"
+                    >
+                      <option value="">-- Tiada / Bukan dalam fail --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#28152F] mb-1">
+                      ID Transaksi (Pilihan)
+                    </label>
+                    <select
+                      value={mapping.idTransaksi || ''}
+                      onChange={(e) => handleMappingChange('idTransaksi', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs text-[#28152F] bg-white focus:outline-none focus:ring-2 focus:ring-[#BE1E72]/20 focus:border-[#BE1E72]"
+                    >
+                      <option value="">-- Tiada / Bukan dalam fail --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#28152F] mb-1">
+                      Masa Transaksi (Pilihan)
+                    </label>
+                    <select
+                      value={mapping.masa || ''}
+                      onChange={(e) => handleMappingChange('masa', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs text-[#28152F] bg-white focus:outline-none focus:ring-2 focus:ring-[#BE1E72]/20 focus:border-[#BE1E72]"
+                    >
+                      <option value="">-- Tiada / Bukan dalam fail --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#28152F] mb-1">
+                      Nota / Catatan (Pilihan)
+                    </label>
+                    <select
+                      value={mapping.nota || ''}
+                      onChange={(e) => handleMappingChange('nota', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs text-[#28152F] bg-white focus:outline-none focus:ring-2 focus:ring-[#BE1E72]/20 focus:border-[#BE1E72]"
+                    >
+                      <option value="">-- Tiada / Bukan dalam fail --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Validation Status Pill / Banner */}
@@ -472,7 +626,7 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
                         {(() => {
                           const q = parseQuantity(r.kuantiti)
                           return q !== null ? (
-                            q
+                            q.toLocaleString()
                           ) : (
                             <span className="text-rose-500 font-semibold">Ralat</span>
                           )
@@ -481,7 +635,7 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
                       <td className="py-2.5 px-3 text-right text-[#28152F]">
                         {(() => {
                           const p = parseCurrency(r.harga)
-                          return p !== null ? (
+                          return p !== null && p >= 0 ? (
                             formatRM(p)
                           ) : (
                             <span className="text-rose-500 font-semibold">Ralat</span>
@@ -490,16 +644,24 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
                       </td>
                       <td className="py-2.5 px-3 text-right text-[#68586B]">
                         {(() => {
-                          if (r.kos === null || r.kos === '') return '-'
+                          if (r.kos === null || r.kos === undefined || r.kos === '') return '-'
+                          const raw = String(r.kos).trim()
+                          if (raw === '-' || raw === '--' || /^(?:n\/?a|tiada)$/i.test(raw)) {
+                            return '-'
+                          }
                           const c = parseCurrency(r.kos)
-                          return c !== null ? formatRM(c) : '-'
+                          return c !== null && c >= 0 ? (
+                            formatRM(c)
+                          ) : (
+                            <span className="text-rose-500 font-semibold">Ralat</span>
+                          )
                         })()}
                       </td>
                       <td className="py-2.5 px-3 text-[#68586B] truncate max-w-[90px]">
-                        {r.tarikh ? formatDateMY(r.tarikh) : '-'}
+                        {r.tarikh ? formatDateMY(normalizeDate(r.tarikh) || r.tarikh) : '-'}
                       </td>
                       <td className="py-2.5 px-3 text-[#68586B]">
-                        {r.saluran || '-'}
+                        {r.saluran ? normalizeChannel(r.saluran) || r.saluran : '-'}
                       </td>
                     </tr>
                   ))}
@@ -511,6 +673,43 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
               <p className="text-[11px] text-[#68586B] text-center pt-1 font-body">
                 Menunjukkan 6 rekod pertama daripada {mappedRecords.length} keseluruhan baris fail.
               </p>
+            )}
+
+            {/* Optional recognized columns indicator */}
+            {mappedExtraCount > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-[#68586B]">
+                <span className="font-semibold text-[#28152F]">Kolum Tambahan Dikesan:</span>
+                {mapping.kategori && (
+                  <span className="bg-pink-50 text-[#BE1E72] px-2 py-0.5 rounded-md font-medium border border-pink-100">
+                    Kategori ({mapping.kategori})
+                  </span>
+                )}
+                {mapping.kaedahBayaran && (
+                  <span className="bg-pink-50 text-[#BE1E72] px-2 py-0.5 rounded-md font-medium border border-pink-100">
+                    Kaedah Bayaran ({mapping.kaedahBayaran})
+                  </span>
+                )}
+                {mapping.lokasi && (
+                  <span className="bg-pink-50 text-[#BE1E72] px-2 py-0.5 rounded-md font-medium border border-pink-100">
+                    Lokasi ({mapping.lokasi})
+                  </span>
+                )}
+                {mapping.idTransaksi && (
+                  <span className="bg-pink-50 text-[#BE1E72] px-2 py-0.5 rounded-md font-medium border border-pink-100">
+                    ID Transaksi ({mapping.idTransaksi})
+                  </span>
+                )}
+                {mapping.masa && (
+                  <span className="bg-pink-50 text-[#BE1E72] px-2 py-0.5 rounded-md font-medium border border-pink-100">
+                    Masa ({mapping.masa})
+                  </span>
+                )}
+                {mapping.nota && (
+                  <span className="bg-pink-50 text-[#BE1E72] px-2 py-0.5 rounded-md font-medium border border-pink-100">
+                    Nota ({mapping.nota})
+                  </span>
+                )}
+              </div>
             )}
           </div>
 

@@ -59,17 +59,20 @@ export function normalizeDate(dateVal: unknown): string | null {
   return null
 }
 
-const VALID_CHANNELS: Record<string, SalesChannel> = {
+const CANONICAL_CHANNELS: Record<string, string> = {
+  gerai: 'Gerai',
   booth: 'Booth',
-  gerai: 'Booth',
-  ekspo: 'Booth',
-  pasar: 'Booth',
-  fizikal: 'Booth',
+  whatsapp: 'WhatsApp',
   online: 'Online',
-  atas_talian: 'Online',
-  shopee: 'Online',
-  tiktok: 'Online',
-  whatsapp: 'Online',
+  tempahan: 'Tempahan',
+  'tiktok shop': 'TikTok Shop',
+  tiktok: 'TikTok Shop',
+  bazar: 'Bazar',
+  kiosk: 'Kiosk',
+  shopee: 'Shopee',
+  lazada: 'Lazada',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
   'lain-lain': 'Lain-lain',
   lain: 'Lain-lain',
   others: 'Lain-lain',
@@ -79,20 +82,24 @@ export function normalizeChannel(channelVal: unknown): SalesChannel | null {
   if (channelVal === null || channelVal === undefined || channelVal === '') {
     return null
   }
-  const clean = String(channelVal).trim().toLowerCase()
-  if (VALID_CHANNELS[clean]) {
-    return VALID_CHANNELS[clean]
+  const clean = String(channelVal).trim()
+  if (!clean) return null
+  if (clean.length > 50) return null
+
+  const lower = clean.toLowerCase()
+  if (CANONICAL_CHANNELS[lower]) {
+    return CANONICAL_CHANNELS[lower]
   }
-  if (clean.includes('booth') || clean.includes('gerai')) return 'Booth'
-  if (clean.includes('online') || clean.includes('talian')) return 'Online'
-  if (clean.includes('lain')) return 'Lain-lain'
-  return null
+
+  // Preserve user-defined channel name as-is (non-empty, trimmed, <= 50 chars)
+  return clean
 }
 
 /**
  * Flexible currency parser:
  * Detects numbers with or without RM, MYR, $, commas, non-breaking spaces,
- * Excel accounting dash zeroes, and unit suffixes (e.g. "RM 15.00", "RM15", "15.00", "15 / unit", "80 sen").
+ * and unit suffixes (e.g. "RM 15.00", "RM15", "15.00", "15 / unit", "80 sen").
+ * Preserves explicit zero (0, "0", "RM 0.00") while treating "-", "--", "N/A" as missing (null).
  */
 export function parseCurrency(val: unknown): number | null {
   if (val === undefined || val === null || val === '') return null
@@ -103,8 +110,13 @@ export function parseCurrency(val: unknown): number | null {
   let str = String(val).trim()
   if (!str) return null
 
-  // Excel accounting zero representation: "-" or "RM -" or "RM - "
-  if (/^([rR][mM]|myr|\$)?\s*-\s*$/i.test(str)) {
+  // Explicit missing / not applicable markers are unknown, NOT zero
+  if (str === '-' || str === '--' || /^(?:n\/?a|tiada)$/i.test(str)) {
+    return null
+  }
+
+  // Excel accounting zero representation: "RM -" or "RM - " or "$ -"
+  if (/^([rR][mM]|myr|\$)\s*-\s*$/i.test(str)) {
     return 0
   }
 
@@ -117,7 +129,7 @@ export function parseCurrency(val: unknown): number | null {
 
   // Clean currency symbols, commas, non-breaking spaces, and suffixes
   str = str
-    .replace(/\u00A0/g, ' ') // replace non-breaking spaces from Excel
+    .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ') // replace Unicode spaces
     .replace(/^[(\s]*([rR][mM]|myr|\$)\s*/i, '') // leading RM / MYR / $
     .replace(/\s*([rR][mM]|myr|\$)[)\s]*$/i, '') // trailing RM / MYR / $
     .replace(/\s*(\/|seunit|unit|seorang|pax|set|pack|bekas|biji|pcs|keping|balang|botol).*$/i, '') // unit suffixes
@@ -193,15 +205,20 @@ export function validateSale(
   // Kos Seunit (Optional: if provided, must be positive number >= 0, supporting RM and comma currency formatting)
   let kos: number | null = null
   if (sale.kos !== undefined && sale.kos !== null && String(sale.kos).trim() !== '') {
-    const parsedCost = parseCurrency(sale.kos)
-    if (parsedCost === null || parsedCost < 0) {
-      issues.push({
-        row,
-        field: 'kos',
-        message: 'Kos seunit tidak sah (mesti nombor positif jika diisi).',
-      })
+    const rawCost = String(sale.kos).trim()
+    if (rawCost === '-' || rawCost === '--' || /^(?:n\/?a|tiada)$/i.test(rawCost)) {
+      kos = null
     } else {
-      kos = parsedCost
+      const parsedCost = parseCurrency(sale.kos)
+      if (parsedCost === null || parsedCost < 0) {
+        issues.push({
+          row,
+          field: 'kos',
+          message: 'Kos seunit tidak sah (mesti nombor positif jika diisi).',
+        })
+      } else {
+        kos = parsedCost
+      }
     }
   }
 
@@ -226,10 +243,22 @@ export function validateSale(
       issues.push({
         row,
         field: 'saluran',
-        message: 'Saluran mestilah Booth, Online, atau Lain-lain.',
+        message: 'Nama saluran jualan tidak sah (maksimum 50 aksara).',
       })
     }
   }
+
+  // Optional SME fields (Task 6): Preserved as strings; missing optional fields never reject rows
+  const kategori = sale.kategori && String(sale.kategori).trim() ? String(sale.kategori).trim() : null
+  const kaedahBayaran =
+    sale.kaedahBayaran && String(sale.kaedahBayaran).trim() ? String(sale.kaedahBayaran).trim() : null
+  const lokasi = sale.lokasi && String(sale.lokasi).trim() ? String(sale.lokasi).trim() : null
+  const idTransaksi =
+    sale.idTransaksi !== undefined && sale.idTransaksi !== null && String(sale.idTransaksi).trim() !== ''
+      ? String(sale.idTransaksi).trim() // Preserves leading zeros
+      : null
+  const masa = sale.masa && String(sale.masa).trim() ? String(sale.masa).trim() : null
+  const nota = sale.nota && String(sale.nota).trim() ? String(sale.nota).trim() : null
 
   const valid = issues.length === 0
   return {
@@ -242,6 +271,12 @@ export function validateSale(
           kos,
           tarikh,
           saluran,
+          kategori,
+          kaedahBayaran,
+          lokasi,
+          idTransaksi,
+          masa,
+          nota,
         }
       : null,
     issues,

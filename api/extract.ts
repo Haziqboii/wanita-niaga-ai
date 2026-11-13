@@ -1,8 +1,30 @@
 // Vercel Serverless Function: POST /api/extract
 
+import {
+  parseSessionCookie,
+  resolveParticipantKey,
+  isParticipantFlowEnabled,
+} from '../server/keyHandlers.ts'
+
 export async function POST(request: Request) {
-  const apiKey =
-    request.headers.get('x-gemini-api-key') || process.env.GEMINI_API_KEY
+  const sessionToken = parseSessionCookie(request.headers.get('cookie'))
+  const legacyHeaderKey = request.headers.get('x-gemini-api-key')
+  const resolved = await resolveParticipantKey(sessionToken, legacyHeaderKey)
+
+  if (isParticipantFlowEnabled() && !resolved.key) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        hasSufficientData: false,
+        status: 401,
+        error:
+          'Sesi sambungan Gemini anda telah tamat atau belum disambungkan. Sila sambungkan kunci API Gemini anda di menu keselamatan.',
+      }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const apiKey = resolved.key || process.env.GEMINI_API_KEY
 
   if (!apiKey || apiKey.trim() === '') {
     return new Response(
