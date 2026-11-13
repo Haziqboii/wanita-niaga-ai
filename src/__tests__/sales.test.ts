@@ -364,4 +364,49 @@ describe('Wanita Niaga AI - Phase 1 Test Suite', () => {
     const headerIdx = findHeaderRowIndex(sheetWithBanner)
     expect(headerIdx).toBe(3) // Row index 3 has 'Nama Produk', 'Bilangan', 'Harga Seunit'...
   })
+
+  // Scenario 14: Flexibly detects RM in Harga and Kos without showing RALAT
+  it('Scenario 14: Flexibly detects RM in Harga and Kos without showing RALAT', () => {
+    const rawSalesWithRM: RawSale[] = [
+      { produk: 'Nasi Lemak', kuantiti: '10', harga: 'RM 15.00', kos: 'RM 8.00' },
+      { produk: 'Kek Lapis', kuantiti: '5 unit', harga: 'RM25', kos: 'RM 12.50' },
+      { produk: 'Karipap', kuantiti: '50 biji', harga: 'rm 2.50', kos: '80 sen' },
+      { produk: 'Sambal Botol', kuantiti: '20', harga: 'MYR 10.00', kos: 'RM -' },
+      { produk: 'Biskut Raya', kuantiti: '15', harga: 'RM 1,250.00', kos: 'RM 800.00' },
+      { produk: 'Katering Set', kuantiti: '2 pax', harga: 'RM 45 / unit', kos: 'RM 20 / set' },
+      { produk: 'Brownies', kuantiti: '8', harga: 'RM\u00A030.00', kos: 'RM\u00A015.00' }, // Non-breaking space from Excel
+    ]
+
+    const { valid, invalid, allIssues } = validateRecords(rawSalesWithRM)
+
+    // All rows MUST be valid with 0 errors
+    expect(invalid.length).toBe(0)
+    expect(allIssues.length).toBe(0)
+    expect(valid.length).toBe(7)
+
+    // Verify parsed numeric values
+    expect(valid[0].harga).toBe(15.0)
+    expect(valid[0].kos).toBe(8.0)
+
+    expect(valid[1].kuantiti).toBe(5)
+    expect(valid[1].harga).toBe(25.0)
+    expect(valid[1].kos).toBe(12.5)
+
+    expect(valid[2].kuantiti).toBe(50)
+    expect(valid[2].harga).toBe(2.5)
+    expect(valid[2].kos).toBe(0.8) // 80 sen converted to RM0.80
+
+    expect(valid[3].harga).toBe(10.0)
+    expect(valid[3].kos).toBe(0) // "RM -" parsed to 0
+
+    expect(valid[4].harga).toBe(1250.0) // "RM 1,250.00" parsed cleanly
+    expect(valid[4].kos).toBe(800.0)
+
+    expect(valid[5].kuantiti).toBe(2)
+    expect(valid[5].harga).toBe(45.0) // "RM 45 / unit"
+    expect(valid[5].kos).toBe(20.0) // "RM 20 / set"
+
+    expect(valid[6].harga).toBe(30.0) // Non-breaking space
+    expect(valid[6].kos).toBe(15.0)
+  })
 })

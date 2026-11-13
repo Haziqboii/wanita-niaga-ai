@@ -13,7 +13,7 @@ import {
   isValidFile,
   applyMapping,
 } from '../data/parse'
-import { validateRecords, formatRM, formatDateMY } from '../data/validate'
+import { validateRecords, formatRM, formatDateMY, parseCurrency, parseQuantity } from '../data/validate'
 import type { RawSale, ColumnMapping } from '../types'
 
 export interface UploadFormProps {
@@ -469,25 +469,31 @@ export function UploadForm({ onConfirm, onBack }: UploadFormProps) {
                         {r.produk || <span className="text-rose-500 italic">Tiada nama</span>}
                       </td>
                       <td className="py-2.5 px-3 text-right text-[#28152F]">
-                        {r.kuantiti !== '' && !isNaN(Number(r.kuantiti)) ? (
-                          r.kuantiti
-                        ) : (
-                          <span className="text-rose-500 font-semibold">Ralat</span>
-                        )}
+                        {(() => {
+                          const q = parseQuantity(r.kuantiti)
+                          return q !== null ? (
+                            q
+                          ) : (
+                            <span className="text-rose-500 font-semibold">Ralat</span>
+                          )
+                        })()}
                       </td>
                       <td className="py-2.5 px-3 text-right text-[#28152F]">
-                        {r.harga !== '' && !isNaN(Number(r.harga)) ? (
-                          formatRM(Number(r.harga))
-                        ) : (
-                          <span className="text-rose-500 font-semibold">Ralat</span>
-                        )}
+                        {(() => {
+                          const p = parseCurrency(r.harga)
+                          return p !== null ? (
+                            formatRM(p)
+                          ) : (
+                            <span className="text-rose-500 font-semibold">Ralat</span>
+                          )
+                        })()}
                       </td>
                       <td className="py-2.5 px-3 text-right text-[#68586B]">
-                        {r.kos !== null && r.kos !== '' && !isNaN(Number(r.kos)) ? (
-                          formatRM(Number(r.kos))
-                        ) : (
-                          '-'
-                        )}
+                        {(() => {
+                          if (r.kos === null || r.kos === '') return '-'
+                          const c = parseCurrency(r.kos)
+                          return c !== null ? formatRM(c) : '-'
+                        })()}
                       </td>
                       <td className="py-2.5 px-3 text-[#68586B] truncate max-w-[90px]">
                         {r.tarikh ? formatDateMY(r.tarikh) : '-'}

@@ -5,7 +5,7 @@ import {
   ChevronUpIcon,
   ExclamationTriangleIcon,
 } from './ui/Icons'
-import { formatRM, validateSale } from '../data/validate'
+import { formatRM, validateSale, parseCurrency, parseQuantity } from '../data/validate'
 import type { RawSale, SalesChannel } from '../types'
 
 export interface ManualEntryFormProps {
@@ -84,9 +84,9 @@ export function ManualEntryForm({
 
     const newRecord: RawSale = {
       produk: form.produk.trim(),
-      kuantiti: Number(form.kuantiti),
-      harga: Number(form.harga),
-      kos: form.kos.trim() !== '' ? Number(form.kos) : null,
+      kuantiti: parseQuantity(form.kuantiti) ?? Number(form.kuantiti),
+      harga: parseCurrency(form.harga) ?? Number(form.harga),
+      kos: form.kos.trim() !== '' ? parseCurrency(form.kos) : null,
       tarikh: form.tarikh.trim() !== '' ? form.tarikh : null,
       saluran: form.saluran !== '' ? form.saluran : null,
     }

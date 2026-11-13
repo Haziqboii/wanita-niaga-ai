@@ -13,7 +13,7 @@ import {
   ChevronRightIcon,
 } from './ui/Icons'
 import { extractSalesFromStory } from '../services/aiExtraction'
-import { formatRM, formatDateMY, validateRecords } from '../data/validate'
+import { formatRM, formatDateMY, validateRecords, parseCurrency, parseQuantity } from '../data/validate'
 import type { RawSale } from '../types'
 
 export interface StoryInputFormProps {
@@ -130,11 +130,13 @@ export function StoryInputForm({
       setFormError('Sila masukkan nama produk.')
       return
     }
-    if (!editForm.kuantiti || Number(editForm.kuantiti) <= 0) {
+    const parsedQty = parseQuantity(editForm.kuantiti)
+    if (parsedQty === null) {
       setFormError('Sila masukkan kuantiti jualan yang sah (lebih daripada 0).')
       return
     }
-    if (editForm.harga === '' || Number(editForm.harga) < 0) {
+    const parsedPrice = parseCurrency(editForm.harga)
+    if (parsedPrice === null || parsedPrice < 0) {
       setFormError('Sila masukkan harga jualan seunit yang sah.')
       return
     }
@@ -143,11 +145,11 @@ export function StoryInputForm({
     updated[editingIndex] = {
       ...editForm,
       produk: editForm.produk.trim(),
-      kuantiti: Number(editForm.kuantiti),
-      harga: Number(editForm.harga),
+      kuantiti: parsedQty,
+      harga: parsedPrice,
       kos:
         editForm.kos !== null && editForm.kos !== undefined && String(editForm.kos).trim() !== ''
-          ? Number(editForm.kos)
+          ? parseCurrency(editForm.kos)
           : null,
     }
     setExtractedRecords(updated)
@@ -180,22 +182,24 @@ export function StoryInputForm({
       setFormError('Sila masukkan nama produk atau perkhidmatan.')
       return
     }
-    if (!addForm.kuantiti || Number(addForm.kuantiti) <= 0) {
+    const parsedQty = parseQuantity(addForm.kuantiti)
+    if (parsedQty === null) {
       setFormError('Sila masukkan kuantiti jualan yang sah (lebih daripada 0).')
       return
     }
-    if (addForm.harga === '' || Number(addForm.harga) < 0) {
+    const parsedPrice = parseCurrency(addForm.harga)
+    if (parsedPrice === null || parsedPrice < 0) {
       setFormError('Sila masukkan harga jualan seunit yang sah.')
       return
     }
 
     const newRecord: RawSale = {
       produk: addForm.produk.trim(),
-      kuantiti: Number(addForm.kuantiti),
-      harga: Number(addForm.harga),
+      kuantiti: parsedQty,
+      harga: parsedPrice,
       kos:
         addForm.kos !== null && addForm.kos !== undefined && String(addForm.kos).trim() !== ''
-          ? Number(addForm.kos)
+          ? parseCurrency(addForm.kos)
           : null,
       tarikh: addForm.tarikh || null,
       saluran: addForm.saluran || null,

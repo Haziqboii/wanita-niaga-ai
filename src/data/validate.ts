@@ -89,6 +89,69 @@ export function normalizeChannel(channelVal: unknown): SalesChannel | null {
   return null
 }
 
+/**
+ * Flexible currency parser:
+ * Detects numbers with or without RM, MYR, $, commas, non-breaking spaces,
+ * Excel accounting dash zeroes, and unit suffixes (e.g. "RM 15.00", "RM15", "15.00", "15 / unit", "80 sen").
+ */
+export function parseCurrency(val: unknown): number | null {
+  if (val === undefined || val === null || val === '') return null
+  if (typeof val === 'number') {
+    return Number.isFinite(val) ? val : null
+  }
+
+  let str = String(val).trim()
+  if (!str) return null
+
+  // Excel accounting zero representation: "-" or "RM -" or "RM - "
+  if (/^([rR][mM]|myr|\$)?\s*-\s*$/i.test(str)) {
+    return 0
+  }
+
+  // Handle "sen" notation, e.g. "80 sen", "50sen"
+  const senMatch = str.match(/^(\d+(?:\.\d+)?)\s*sen$/i)
+  if (senMatch) {
+    const senVal = parseFloat(senMatch[1])
+    return Number.isFinite(senVal) ? senVal / 100 : null
+  }
+
+  // Clean currency symbols, commas, non-breaking spaces, and suffixes
+  str = str
+    .replace(/\u00A0/g, ' ') // replace non-breaking spaces from Excel
+    .replace(/^[(\s]*([rR][mM]|myr|\$)\s*/i, '') // leading RM / MYR / $
+    .replace(/\s*([rR][mM]|myr|\$)[)\s]*$/i, '') // trailing RM / MYR / $
+    .replace(/\s*(\/|seunit|unit|seorang|pax|set|pack|bekas|biji|pcs|keping|balang|botol).*$/i, '') // unit suffixes
+    .replace(/[()]/g, '') // strip parentheses
+    .replace(/,/g, '') // strip thousand commas
+    .trim()
+
+  const num = Number(str)
+  return Number.isFinite(num) ? num : null
+}
+
+/**
+ * Flexible quantity parser:
+ * Detects positive integers with or without commas and unit suffixes (e.g. "12", "12 unit", "50 biji", "1,000").
+ */
+export function parseQuantity(val: unknown): number | null {
+  if (val === undefined || val === null || val === '') return null
+  if (typeof val === 'number') {
+    return Number.isFinite(val) && val > 0 ? Math.round(val) : null
+  }
+
+  let str = String(val).trim()
+  if (!str) return null
+
+  str = str
+    .replace(/\u00A0/g, ' ')
+    .replace(/,/g, '') // remove commas
+    .replace(/\s*(unit|biji|bungkus|keping|tempahan|pack|bekas|botol|pax|set|balang|pcs|items?).*$/i, '')
+    .trim()
+
+  const num = Number(str)
+  return Number.isFinite(num) && num > 0 ? Math.round(num) : null
+}
+
 export function validateSale(
   sale: RawSale,
   row: number
@@ -102,34 +165,18 @@ export function validateSale(
   }
 
   // Kuantiti (Required: positive integer)
-  const rawQty = sale.kuantiti
-  let kuantiti = NaN
-  if (rawQty !== undefined && rawQty !== null && String(rawQty).trim() !== '') {
-    const cleanQty = String(rawQty).replace(/,/g, '').trim()
-    kuantiti = Number(cleanQty)
-  }
-  if (!Number.isFinite(kuantiti)) {
+  const kuantiti = parseQuantity(sale.kuantiti)
+  if (kuantiti === null) {
     issues.push({
       row,
       field: 'kuantiti',
-      message: 'Kuantiti terjual mesti diisi dengan nombor.',
-    })
-  } else if (!Number.isInteger(kuantiti) || kuantiti <= 0) {
-    issues.push({
-      row,
-      field: 'kuantiti',
-      message: 'Kuantiti terjual mesti nombor bulat lebih daripada 0.',
+      message: 'Kuantiti terjual mesti diisi dengan nombor bulat lebih daripada 0.',
     })
   }
 
-  // Harga Seunit (Required: positive number >= 0, supporting RM and comma currency formatting)
-  const rawPrice = sale.harga
-  let harga = NaN
-  if (rawPrice !== undefined && rawPrice !== null && String(rawPrice).trim() !== '') {
-    const cleanPrice = String(rawPrice).replace(/[rR][mM]\s*/g, '').replace(/,/g, '').trim()
-    harga = Number(cleanPrice)
-  }
-  if (!Number.isFinite(harga)) {
+  // Harga Seunit (Required: positive number >= 0, supporting RM, MYR, comma currency formatting)
+  const harga = parseCurrency(sale.harga)
+  if (harga === null) {
     issues.push({
       row,
       field: 'harga',
@@ -145,11 +192,9 @@ export function validateSale(
 
   // Kos Seunit (Optional: if provided, must be positive number >= 0, supporting RM and comma currency formatting)
   let kos: number | null = null
-  const rawCost = sale.kos
-  if (rawCost !== undefined && rawCost !== null && String(rawCost).trim() !== '') {
-    const cleanCost = String(rawCost).replace(/[rR][mM]\s*/g, '').replace(/,/g, '').trim()
-    const parsedCost = Number(cleanCost)
-    if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+  if (sale.kos !== undefined && sale.kos !== null && String(sale.kos).trim() !== '') {
+    const parsedCost = parseCurrency(sale.kos)
+    if (parsedCost === null || parsedCost < 0) {
       issues.push({
         row,
         field: 'kos',
@@ -192,8 +237,8 @@ export function validateSale(
     sale: valid
       ? {
           produk,
-          kuantiti,
-          harga,
+          kuantiti: kuantiti!,
+          harga: harga!,
           kos,
           tarikh,
           saluran,
