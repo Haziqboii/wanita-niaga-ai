@@ -32,7 +32,7 @@ export function Homepage({ onStory, onUpload, onManual, onSample, onOpenGuide }:
         {/* Mobile Background Layer (<640px) */}
         <div
           aria-hidden="true"
-          className="sm:hidden absolute inset-0 bg-no-repeat bg-[center_top] bg-[length:100%_auto] pointer-events-none z-0"
+          className="sm:hidden absolute inset-0 bg-no-repeat bg-[center_bottom] bg-[length:100%_auto] pointer-events-none z-0"
           style={{ backgroundImage: `url(${heroBannerMobile})` }}
         />
 
@@ -44,7 +44,7 @@ export function Homepage({ onStory, onUpload, onManual, onSample, onOpenGuide }:
         />
 
         {/* Foreground Content Container */}
-        <div className="relative z-10 flex flex-col justify-between sm:justify-center h-[clamp(470px,126vw,530px)] sm:h-auto sm:min-h-[290px] md:min-h-[320px] p-5 xs:p-6 sm:p-8 md:p-9">
+        <div className="relative z-10 flex flex-col justify-start sm:justify-center h-[clamp(530px,142vw,610px)] sm:h-auto sm:min-h-[290px] md:min-h-[320px] p-5 xs:p-6 sm:p-8 md:p-9">
           {/* Text and Primary CTA Button */}
           <div className="w-full max-w-[290px] xs:max-w-xs sm:max-w-[48%] md:max-w-[50%] space-y-2 sm:space-y-2.5">
             {/* Pill Tag */}
