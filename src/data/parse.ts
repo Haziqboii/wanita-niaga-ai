@@ -12,6 +12,12 @@ const PRODUK_ALIASES = [
   'menu',
   'perkhidmatan',
   'product',
+  'keterangan',
+  'perkara',
+  'description',
+  'item description',
+  'butiran',
+  'nama',
 ]
 
 const KUANTITI_ALIASES = [
@@ -24,6 +30,11 @@ const KUANTITI_ALIASES = [
   'terjual',
   'unit terjual',
   'jumlah kuantiti',
+  'vol',
+  'volume',
+  'bil',
+  'units sold',
+  'qty sold',
 ]
 
 const HARGA_ALIASES = [
@@ -35,6 +46,10 @@ const HARGA_ALIASES = [
   'harga jualan',
   'jual',
   'selling price',
+  'kadar',
+  'rate',
+  'retail price',
+  'harga unit',
 ]
 
 const KOS_ALIASES = [
@@ -45,6 +60,8 @@ const KOS_ALIASES = [
   'modal',
   'modal seunit',
   'kos modal',
+  'cogs',
+  'harga modal',
 ]
 
 const TARIKH_ALIASES = [
@@ -54,6 +71,8 @@ const TARIKH_ALIASES = [
   'sales date',
   'tanggal',
   'hari',
+  'tarikh transaksi',
+  'transaction date',
 ]
 
 const SALURAN_ALIASES = [
@@ -64,6 +83,9 @@ const SALURAN_ALIASES = [
   'platform',
   'tempat',
   'lokasi',
+  'source',
+  'kaedah jualan',
+  'cara jualan',
 ]
 
 function findBestHeaderMatch(headers: string[], aliases: string[]): string | null {
@@ -125,6 +147,21 @@ export function applyMapping(
       continue
     }
 
+    // Skip summary / total rows common at the end of Excel accounting worksheets
+    const lowerProduk = (produk || '').toLowerCase().trim()
+    if (
+      lowerProduk === 'jumlah' ||
+      lowerProduk === 'total' ||
+      lowerProduk === 'jumlah keseluruhan' ||
+      lowerProduk === 'grand total' ||
+      lowerProduk === 'subtotal' ||
+      lowerProduk === 'sub-total' ||
+      lowerProduk === 'ringkasan'
+    ) {
+      skippedRows++
+      continue
+    }
+
     records.push({
       produk: produk || '',
       kuantiti: kuantitiStr ?? '',
@@ -166,6 +203,48 @@ export function parseCSV(file: File): Promise<ParseResult> {
       error: (err: Error) => reject(err),
     })
   })
+}
+
+export function findHeaderRowIndex(rows: any[][]): number {
+  const allAliases = [
+    ...PRODUK_ALIASES,
+    ...KUANTITI_ALIASES,
+    ...HARGA_ALIASES,
+    ...KOS_ALIASES,
+    ...TARIKH_ALIASES,
+    ...SALURAN_ALIASES,
+  ]
+
+  let bestIdx = 0
+  let maxScore = -1
+
+  const scanLimit = Math.min(rows.length, 12)
+  for (let i = 0; i < scanLimit; i++) {
+    const row = rows[i]
+    if (!row || !Array.isArray(row)) continue
+
+    const cells = row
+      .map((c: unknown) => (c !== undefined && c !== null ? String(c).trim() : ''))
+      .filter((c: string) => c !== '')
+
+    if (cells.length < 2) continue
+
+    let matchCount = 0
+    for (const cell of cells) {
+      const lower = cell.toLowerCase()
+      if (allAliases.some((alias) => lower.includes(alias) || alias.includes(lower))) {
+        matchCount++
+      }
+    }
+
+    const score = cells.length + matchCount * 8
+    if (score > maxScore) {
+      maxScore = score
+      bestIdx = i
+    }
+  }
+
+  return bestIdx
 }
 
 export function parseExcel(file: File): Promise<ParseResult> {
@@ -213,8 +292,9 @@ export function parseExcel(file: File): Promise<ParseResult> {
           return
         }
 
-        // Header row
-        const rawHeaderRow = rows[0] || []
+        // Smart Header Row Detection (scans first 12 rows for best header row)
+        const headerRowIdx = findHeaderRowIndex(rows)
+        const rawHeaderRow = rows[headerRowIdx] || []
         const headers: string[] = rawHeaderRow
           .map((h: unknown) => (h !== undefined && h !== null ? String(h).trim() : ''))
           .filter((h: string) => h !== '')
@@ -225,14 +305,14 @@ export function parseExcel(file: File): Promise<ParseResult> {
             rawRows: [],
             headers: [],
             mapping: emptyMapping(),
-            errors: ['Tajuk kolum (header) tidak dijumpai pada baris pertama fail.'],
+            errors: ['Tajuk kolum (header) tidak dijumpai dalam helaian fail.'],
           })
           return
         }
 
-        // Convert data rows to object records
+        // Convert data rows to object records (starts right after the detected header row)
         const rawRows: Record<string, unknown>[] = []
-        for (let i = 1; i < rows.length; i++) {
+        for (let i = headerRowIdx + 1; i < rows.length; i++) {
           const rowData = rows[i]
           if (!rowData || rowData.length === 0) continue
 

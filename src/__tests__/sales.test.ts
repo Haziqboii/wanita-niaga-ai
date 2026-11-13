@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { calculateSales, toCents, fromCents } from '../calc/sales'
 import { validateSale, validateRecords, normalizeDate, formatRM, formatDateMY } from '../data/validate'
-import { autoDetectMapping, applyMapping } from '../data/parse'
+import { autoDetectMapping, applyMapping, findHeaderRowIndex } from '../data/parse'
 import { SAMPLE_SALES } from '../data/sample'
 import { getAssistantResponse } from '../services/aiAssistant'
 import type { RawSale, ValidatedSale } from '../types'
@@ -246,5 +246,122 @@ describe('Wanita Niaga AI - Phase 1 Test Suite', () => {
     const resultPositiveOpex = calculateSales(SAMPLE_SALES, 250)
     expect(resultPositiveOpex.operatingExpenses).toBe(250)
     expect(resultPositiveOpex.estimatedNetProfit).toBe(736.5)
+  })
+
+  // Scenario 12: Handles detailed multi-column worksheets with extra metadata and alias matching
+  it('Scenario 12: Auto-detects columns and ignores extra metadata in detailed worksheets', () => {
+    const detailedHeaders = [
+      'No',
+      'Invoice No',
+      'Transaction Date',
+      'Customer Name',
+      'Phone Number',
+      'Item Description',
+      'Category',
+      'Units Sold',
+      'Rate',
+      'Gross Sales',
+      'COGS',
+      'Net Amount',
+      'Sales Channel',
+      'Payment Method',
+      'Remarks',
+    ]
+
+    const mapping = autoDetectMapping(detailedHeaders)
+    expect(mapping.produk).toBe('Item Description')
+    expect(mapping.kuantiti).toBe('Units Sold')
+    expect(mapping.harga).toBe('Rate')
+    expect(mapping.kos).toBe('COGS')
+    expect(mapping.tarikh).toBe('Transaction Date')
+    expect(mapping.saluran).toBe('Sales Channel')
+
+    // Test applying mapping with detailed data including currency strings and summary rows
+    const rawRows = [
+      {
+        No: 1,
+        'Invoice No': 'INV-001',
+        'Transaction Date': '2024-03-15',
+        'Customer Name': 'Puan Salmah',
+        'Phone Number': '012-3456789',
+        'Item Description': 'Kek Batik Indulgence',
+        Category: 'Kek',
+        'Units Sold': '12',
+        Rate: 'RM 35.00',
+        'Gross Sales': 'RM 420.00',
+        COGS: 'RM 15.00',
+        'Net Amount': 'RM 240.00',
+        'Sales Channel': 'Online',
+        'Payment Method': 'DuitNow QR',
+        Remarks: 'Penghantaran ekspres',
+      },
+      {
+        No: 2,
+        'Invoice No': 'INV-002',
+        'Transaction Date': '16/03/2024',
+        'Customer Name': 'Encik Amir',
+        'Phone Number': '019-8765432',
+        'Item Description': 'Biskut Almond London',
+        Category: 'Biskut',
+        'Units Sold': '25',
+        Rate: 'RM 28.00',
+        'Gross Sales': 'RM 700.00',
+        COGS: 'RM 12.00',
+        'Net Amount': 'RM 400.00',
+        'Sales Channel': 'Booth',
+        'Payment Method': 'Tunai',
+        Remarks: '',
+      },
+      // Summary / Total row that often exists at the bottom of accounting spreadsheets
+      {
+        No: '',
+        'Invoice No': '',
+        'Transaction Date': '',
+        'Customer Name': '',
+        'Phone Number': '',
+        'Item Description': 'JUMLAH KESELURUHAN',
+        Category: '',
+        'Units Sold': '37',
+        Rate: '',
+        'Gross Sales': 'RM 1,120.00',
+        COGS: '',
+        'Net Amount': 'RM 640.00',
+        'Sales Channel': '',
+        'Payment Method': '',
+        Remarks: '',
+      },
+    ]
+
+    const { records, skippedRows } = applyMapping(rawRows, mapping)
+    // The summary row 'JUMLAH KESELURUHAN' must be skipped
+    expect(skippedRows).toBe(1)
+    expect(records.length).toBe(2)
+
+    const { valid, invalid } = validateRecords(records)
+    expect(valid.length).toBe(2)
+    expect(invalid.length).toBe(0)
+
+    const result = calculateSales(valid)
+    // 12 * 35 = 420; 25 * 28 = 700 -> Total = 1120
+    expect(result.totalRevenue).toBe(1120)
+    expect(result.totalKuantiti).toBe(37)
+    // Cost: 12 * 15 = 180; 25 * 12 = 300 -> Total = 480
+    expect(result.totalCost).toBe(480)
+    expect(result.grossProfit).toBe(640)
+  })
+
+  // Scenario 13: Detects true header row even with title banners on top rows
+  it('Scenario 13: Detects header row when top rows contain title banners or subtitles', () => {
+    const sheetWithBanner = [
+      ['GERAI MAKANAN KAK ZA', '', '', '', ''],
+      ['Laporan Jualan Bulanan Mac 2024', '', '', '', ''],
+      ['Tarikh Cetakan: 31/03/2024', '', '', '', ''],
+      ['No', 'Nama Produk', 'Bilangan', 'Harga Seunit', 'Kos Modal', 'Saluran'],
+      ['1', 'Nasi Lemak Ayam Berempah', '50', 'RM8.00', 'RM4.00', 'Booth'],
+      ['2', 'Mee Goreng Mamak', '30', 'RM6.00', 'RM2.50', 'Booth'],
+    ]
+
+    const headerIdx = findHeaderRowIndex(sheetWithBanner)
+    expect(headerIdx).toBe(3) // Row index 3 has 'Nama Produk', 'Bilangan', 'Harga Seunit'...
   })
 })
