@@ -163,6 +163,14 @@ export function Layout({
         <ApiKeyModal
           isOpen={showApiKeyModal}
           onClose={() => setShowApiKeyModal(false)}
+          onSaved={() => {
+            fetch('/api/keys/status', { credentials: 'same-origin' })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                setHasSessionKey(Boolean(data?.connected))
+              })
+              .catch(() => {})
+          }}
         />
       </div>
     )
@@ -287,6 +295,19 @@ export function Layout({
           </div>
           <div className="h-2 w-full max-w-xs mx-auto bg-gradient-to-r from-transparent via-pink-200/50 to-transparent rounded-full mt-2" />
         </footer>
+
+        <ApiKeyModal
+          isOpen={showApiKeyModal}
+          onClose={() => setShowApiKeyModal(false)}
+          onSaved={() => {
+            fetch('/api/keys/status', { credentials: 'same-origin' })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                setHasSessionKey(Boolean(data?.connected))
+              })
+              .catch(() => {})
+          }}
+        />
       </div>
     )
   }
@@ -399,6 +420,14 @@ export function Layout({
       <ApiKeyModal
         isOpen={showApiKeyModal}
         onClose={() => setShowApiKeyModal(false)}
+        onSaved={() => {
+          fetch('/api/keys/status', { credentials: 'same-origin' })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              setHasSessionKey(Boolean(data?.connected))
+            })
+            .catch(() => {})
+        }}
       />
     </div>
   )
