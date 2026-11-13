@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  /* Berry Pop Palette Tokens */
+  --color-berry-primary: #be1e72;
+  --color-berry-pink: #f472b6;
+  --color-berry-violet: #7c3aed;
+  --color-berry-teal: #0d9488;
+  --color-berry-yellow: #facc60;
+  --color-berry-blush: #fff5fa;
+  --color-berry-surface: #ffffff;
+  --color-berry-text: #28152f;
+  --color-berry-muted: #68586b;
+  --color-berry-border: #f1d3e3;
+
+  --font-heading: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --color-purple-soft: #f5f3ff;
+  --color-purple: #7e3af2;
+  --color-purple-dark: #6a29cc;
+  --color-teal: #2ec4b6;
+  --color-teal-dark: #1a9e8f;
+  --color-teal-soft: #e7faf6;
+  --color-bg: #ffffff;
+  --color-surface: #f8f9fb;
+  --color-border: #e5e7eb;
+  --color-text: #1f2937;
+  --color-text-muted: #6b7280;
+  --color-danger: #dc2626;
+  --color-success: #16a34a;
+
+  --font-sans: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+  --breakpoint-mobile: 360px;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button, a, input, select, textarea {
+  font-family: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* UI/UX Pro Max: Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* UI/UX Pro Max: Tabular numbers for financial metrics */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Completely hide native scrollbars while preserving full scroll action */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
