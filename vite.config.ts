@@ -9,5 +9,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss(), geminiApiPlugin()],
+    server: {
+      allowedHosts: true,
+    },
   }
 })

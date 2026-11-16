@@ -223,9 +223,9 @@ export function tryLocalCalculation(
     if (options?.monthlyComparison) {
       const mc = options.monthlyComparison
       if (mc.previousMonthLabel && mc.previousRevenue !== null) {
-        return `Perbandingan Prestasi Bulanan:\n${mc.summaryText} (${mc.currentMonthLabel}: ${formatRM(mc.currentRevenue)}, ${mc.previousMonthLabel}: ${formatRM(mc.previousRevenue)}).`
+        return `Perbandingan Jualan Bulanan:\n${mc.summaryText} (${mc.currentMonthLabel}: ${formatRM(mc.currentRevenue)}, ${mc.previousMonthLabel}: ${formatRM(mc.previousRevenue)}).`
       }
-      return `Perbandingan Prestasi Bulanan:\n${mc.summaryText}`
+      return `Perbandingan Jualan Bulanan:\n${mc.summaryText}`
     }
     const summaries = getMonthSummaries()
     if (summaries.length >= 2) {
@@ -234,7 +234,7 @@ export function tryLocalCalculation(
       const diff = m2.revenue - m1.revenue
       const pct = m1.revenue > 0 ? (diff / m1.revenue) * 100 : 0
       const isInc = diff >= 0
-      return `Perbandingan Prestasi Bulanan:\nJualan bulan ${m2.label} ${isInc ? 'meningkat' : 'menurun'} sebanyak ${formatRM(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%) berbanding ${m1.label} (${m2.label}: ${formatRM(m2.revenue)}, ${m1.label}: ${formatRM(m1.revenue)}).`
+      return `Perbandingan Jualan Bulanan:\nJualan bulan ${m2.label} ${isInc ? 'meningkat' : 'menurun'} sebanyak ${formatRM(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%) berbanding ${m1.label} (${m2.label}: ${formatRM(m2.revenue)}, ${m1.label}: ${formatRM(m1.revenue)}).`
     }
   }
 

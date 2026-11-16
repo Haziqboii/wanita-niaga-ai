@@ -2,12 +2,10 @@ import React, { useState, useRef, useEffect } from 'react'
 import { MarkdownText } from './MarkdownText'
 import { ApiKeyModal } from './ApiKeyModal'
 import {
-  MagnifyingGlassIcon,
-  SparklesIcon,
   ChatBubbleIcon,
-  PencilIcon,
   PaperAirplaneIcon,
-  InfoIcon,
+  LightBulbIcon,
+  ChevronDownIcon,
 } from './ui/Icons'
 import {
   getAdaptiveSuggestedQuestions,
@@ -26,7 +24,7 @@ export interface ChatProps {
   result: SalesResult
   messages: ChatMessage[]
   onUpdateMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
-  onBack: () => void
+  onBack?: () => void
   allResult?: SalesResult
   selectedPeriod?: string
   monthlyComparison?: MonthlyComparison | null
@@ -38,7 +36,7 @@ export function Chat({
   result,
   messages,
   onUpdateMessages,
-  onBack,
+  onBack: _onBack,
   allResult,
   selectedPeriod = 'Semua',
   monthlyComparison = null,
@@ -49,7 +47,21 @@ export function Chat({
   const [isLoading, setIsLoading] = useState(false)
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [, setKeyVersion] = useState(0)
-  const [hasSessionKey, setHasSessionKey] = useState(false)
+  const [, setHasSessionKey] = useState(false)
+
+  // Lightbulb suggestions panel state
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  // Scroll to bottom floating button state
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false)
+  // Virtual keyboard tracking for mobile safe-area adjustment
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
+
+  const isNearBottomRef = useRef(true)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
+  const lightbulbBtnRef = useRef<HTMLButtonElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/keys/status', { credentials: 'same-origin' })
@@ -60,18 +72,113 @@ export function Chat({
       .catch(() => {})
   }, [showApiKeyModal])
 
-  const hasCustomKey = hasSessionKey || (typeof window !== 'undefined' ? Boolean(localStorage.getItem('user_gemini_api_key')) : false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
   const adaptiveQuestions = getAdaptiveSuggestedQuestions(result)
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (messagesScrollRef.current) {
+      messagesScrollRef.current.scrollTo({
+        top: messagesScrollRef.current.scrollHeight,
+        behavior,
+      })
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior })
+    }
   }
 
+  // Scroll tracking: detect if user is near bottom or reading older messages
+  const handleScroll = () => {
+    const el = messagesScrollRef.current
+    if (!el) return
+    const threshold = 120
+    const isNear = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold
+    isNearBottomRef.current = isNear
+    setShowScrollBottomBtn(!isNear)
+  }
+
+  // Initial scroll: reset window to top and scroll conversation to latest message
   useEffect(() => {
-    scrollToBottom()
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    const timer = setTimeout(() => {
+      scrollToBottom('instant')
+    }, 40)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Natural scrolling: auto-scroll only if user is already near bottom or just sent a message
+  useEffect(() => {
+    const last = messages[messages.length - 1]
+    if (isNearBottomRef.current || last?.sender === 'user') {
+      scrollToBottom('smooth')
+    }
   }, [messages, isLoading])
+
+  // Mobile Virtual Keyboard accommodation via Visual Viewport API
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+
+    const handleViewportChange = () => {
+      const isShort = window.innerHeight - vv.height > 120
+      setIsKeyboardOpen(isShort)
+
+      // Auto-scroll messages only when keyboard is actively opened (input focused)
+      const activeTag = document.activeElement?.tagName
+      if (isShort && (activeTag === 'INPUT' || activeTag === 'TEXTAREA')) {
+        window.scrollTo(0, 0)
+        scrollToBottom('instant')
+      }
+    }
+
+    vv.addEventListener('resize', handleViewportChange)
+    vv.addEventListener('scroll', handleViewportChange)
+    return () => {
+      vv.removeEventListener('resize', handleViewportChange)
+      vv.removeEventListener('scroll', handleViewportChange)
+    }
+  }, [])
+
+  // Outside click & Escape listener for floating suggestions panel
+  useEffect(() => {
+    if (!showSuggestions) return
+
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(target) &&
+        lightbulbBtnRef.current &&
+        !lightbulbBtnRef.current.contains(target)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowSuggestions(false)
+        lightbulbBtnRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showSuggestions])
+
+  // Suggestion selected: fill input, do NOT auto-send, allow editing, focus input
+  const handleSelectSuggestion = (text: string) => {
+    setInputText(text)
+    setShowSuggestions(false)
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 50)
+  }
 
   const handleSendMessage = async (textToSend: string) => {
     const trimmed = textToSend.trim()
@@ -93,6 +200,8 @@ export function Chat({
     onUpdateMessages(updatedHistory)
     setInputText('')
     setIsLoading(true)
+    isNearBottomRef.current = true
+    setShowSuggestions(false)
 
     try {
       const assistantOpts: AssistantOptions = {
@@ -147,311 +256,288 @@ export function Chat({
     latestMessage.suggestedFollowUps.length > 0
 
   return (
-    <div className="space-y-4 max-w-xl mx-auto pb-4">
-      {/* 1. Header Card (Title, Subtitle "Nasihat perniagaan ringkas dan mudah", Papan Pemuka Button - No Gemini Teal) */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-[#F1D3E3] p-3 sm:p-3.5 shadow-2xs flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center -ml-1 text-[#28152F] hover:text-[#BE1E72] hover:bg-pink-50 rounded-xl transition-colors cursor-pointer active:scale-95"
-            aria-label="Kembali ke Papan Pemuka"
-            title="Kembali ke Papan Pemuka"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div className="flex-1 min-h-0 flex flex-col w-full max-w-4xl mx-auto overflow-hidden relative animate-fadeIn">
+      {/* 1. Scrollable Conversation in the Middle (Fills Viewport) */}
+      <div
+        ref={messagesScrollRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto px-3.5 sm:px-6 py-4 space-y-3.5 relative bg-[#FAF7F2] overscroll-contain touch-pan-y"
+      >
+        {/* Subtle Date Indicator */}
+        <div className="flex justify-center my-1">
+          <span className="text-[11px] font-semibold text-[#7A6E77] bg-[#FAF6F0] border border-[#EBE1D7] px-3.5 py-1 rounded-full shadow-[0_1px_4px_rgba(23,19,23,0.04)]">
+            Perbualan Hari Ini
+          </span>
+        </div>
+
+        {messages.map((msg, index) => {
+          const isUser = msg.sender === 'user'
+          const isBot = msg.sender === 'bot'
+          const isLastMessage = index === messages.length - 1
+
+          return (
+            <div
+              key={msg.id}
+              className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} motion-safe:animate-fadeIn`}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-[#28152F] font-heading leading-tight">
-                Pembantu Niaga AI
-              </h1>
-              {selectedPeriod && selectedPeriod !== 'ALL' && selectedPeriod !== 'Semua' && (
-                <span className="text-[10px] font-extrabold text-[#BE1E72] bg-[#FCE7F3] border border-[#F1D3E3] px-2 py-0.5 rounded-full">
-                  {selectedPeriod}
-                </span>
+              {/* User Message Bubble */}
+              {isUser && (
+                <div className="max-w-[85%] sm:max-w-[78%] bg-[#800020] text-white rounded-[20px] rounded-br-[4px] sm:rounded-[22px] sm:rounded-br-[6px] px-4 py-3 sm:px-5 sm:py-3.5 shadow-[0_2px_10px_rgba(128,0,32,0.18)] break-words">
+                  <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-body text-white">
+                    {msg.text}
+                  </p>
+                  {msg.timestamp && (
+                    <div className="text-[11px] text-[#F8EAE8]/85 text-right mt-1 font-medium flex items-center justify-end gap-1">
+                      <span>{msg.timestamp}</span>
+                      <span className="font-bold tracking-tighter" aria-label="Dihantar">&#10003;&#10003;</span>
+                    </div>
+                  )}
+                </div>
               )}
-            </div>
-            <p className="text-[11px] sm:text-xs text-[#68586B] font-body mt-0.5">
-              Nasihat perniagaan ringkas dan mudah
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowApiKeyModal(true)}
-            title="Tetapan Kunci API Gemini"
-            className="relative w-10 h-10 rounded-full border border-[#F1D3E3] bg-white hover:bg-[#FFF5FA] active:scale-95 text-[#68586B] hover:text-[#BE1E72] flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0"
-          >
-            <span className="text-base" aria-hidden="true">🔑</span>
-            {hasCustomKey && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onBack}
-            className="text-xs sm:text-sm font-bold text-[#BE1E72] hover:text-[#9B1258] bg-[#FCE7F3] hover:bg-pink-100 active:scale-95 px-3.5 sm:px-4 py-2 min-h-[44px] rounded-full border border-pink-200 transition-all cursor-pointer shadow-2xs shrink-0"
-          >
-            Papan Pemuka
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Suggested Questions Above Chat (Cadangan Soalan Pantas) - Smooth horizontal scroll action without visible scroller UI */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#28152F] px-1">
-          <SparklesIcon className="w-4 h-4 text-[#BE1E72]" />
-          <span>Cadangan Soalan Pantas:</span>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar scroll-smooth">
-          {adaptiveQuestions.map((sq) => (
-            <button
-              key={sq.id}
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleSendMessage(sq.text)}
-              className="whitespace-nowrap shrink-0 text-xs sm:text-sm bg-white hover:bg-pink-50 active:bg-pink-100 text-[#28152F] hover:text-[#BE1E72] font-semibold px-4 py-2.5 rounded-full border border-[#F1D3E3] shadow-2xs transition-all cursor-pointer disabled:opacity-50 min-h-[42px] flex items-center gap-2 active:scale-[0.98]"
-            >
-              <ChatBubbleIcon className="w-3.5 h-3.5 text-[#BE1E72] shrink-0" />
-              <span>{sq.text}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 3. Dedicated Chat Container (Berry Pop card - No horizontal scrolling UI inside) */}
-      <div className="bg-white rounded-3xl border border-[#F1D3E3] shadow-xs flex flex-col h-[520px] sm:h-[560px] overflow-hidden">
-        {/* Messages Stream (Independent Vertical Scroll, Zero Horizontal Scroll) */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-4 space-y-3.5 relative scroll-smooth">
-          {/* Subtle Date Divider */}
-          <div className="flex justify-center my-1">
-            <span className="text-[11px] font-bold text-[#68586B] bg-[#FFF5FA] border border-[#F1D3E3] px-3 py-1 rounded-full shadow-2xs">
-              Hari ini
-            </span>
-          </div>
-
-          {messages.map((msg, index) => {
-            const isUser = msg.sender === 'user'
-            const isBot = msg.sender === 'bot'
-            const isLastMessage = index === messages.length - 1
-
-            return (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
-              >
-                {/* User Message Bubble */}
-                {isUser && (
-                  <div className="max-w-[85%] sm:max-w-[78%] bg-[#BE1E72] text-white rounded-2xl sm:rounded-3xl rounded-br-xs px-4 py-2.5 sm:py-3 shadow-2xs break-words">
-                    <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
-                      {msg.text}
-                    </p>
-                    {msg.timestamp && (
-                      <div className="text-[10px] text-pink-100 text-right mt-1 font-medium flex items-center justify-end gap-1">
-                        <span>{msg.timestamp}</span>
-                        <span className="font-bold tracking-tighter">&#10003;&#10003;</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Bot Message Bubble */}
-                {isBot && (
-                  <div className="flex items-start gap-2 max-w-[95%] sm:max-w-[88%] w-full">
-                    {/* Bot Avatar Icon */}
-                    <div
-                      className={`w-8 h-8 rounded-full text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5 ${
-                        msg.isError
-                          ? 'bg-red-500'
-                          : 'bg-gradient-to-tr from-[#BE1E72] to-[#7C3AED]'
-                      }`}
-                    >
-                      <SparklesIcon className="w-4 h-4 text-white" />
+              {/* Bot Message Bubble */}
+              {isBot && (
+                <div className="max-w-[95%] sm:max-w-[90%] w-full">
+                  <div
+                    className={`rounded-[20px] rounded-tl-[4px] sm:rounded-[22px] sm:rounded-tl-[6px] p-4 sm:p-5 text-sm sm:text-base leading-relaxed shadow-[0_2px_12px_rgba(23,19,23,0.03)] transition-all break-words ${
+                      msg.isError
+                        ? 'bg-[#FFF5F5] text-rose-950 border border-rose-200'
+                        : 'bg-white text-[#171317] border border-[#EBE1D7]'
+                    }`}
+                  >
+                    {/* Render message content safely */}
+                    <div className="text-inherit">
+                      <MarkdownText content={msg.text} />
                     </div>
 
-                    {/* Bubble Content */}
-                    <div
-                      className={`flex-1 rounded-2xl sm:rounded-3xl rounded-tl-xs p-3.5 sm:p-4 text-sm sm:text-base leading-relaxed shadow-2xs transition-all break-words ${
-                        msg.isError
-                          ? 'bg-red-50 text-red-900 border border-red-200'
-                          : 'bg-white text-[#28152F] border border-[#F1D3E3]'
-                      }`}
-                    >
-                      {/* Render message content safely */}
-                      <div className="text-inherit">
-                        <MarkdownText content={msg.text} />
-                      </div>
-
-                      {/* Action button if API key issue */}
-                      {msg.isError && (msg.text.includes('GEMINI_API_KEY') || msg.text.includes('Kunci API') || msg.text.includes('kunci API')) && (
-                        <div className="mt-3 pt-2.5 border-t border-red-200 flex flex-wrap gap-2">
+                    {/* Action button if API key issue */}
+                    {msg.isError &&
+                      (msg.text.includes('GEMINI_API_KEY') ||
+                        msg.text.includes('Kunci API') ||
+                        msg.text.includes('kunci API')) && (
+                        <div className="mt-3 pt-2.5 border-t border-rose-200 flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => setShowApiKeyModal(true)}
-                            className="inline-flex items-center gap-1.5 bg-[#BE1E72] hover:bg-[#A3165F] active:bg-[#8B0F4E] text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer min-h-[38px]"
+                            className="btn-primary-burgundy inline-flex items-center gap-1.5 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-full shadow-[0_2px_8px_rgba(128,0,32,0.22)] transition-all cursor-pointer min-h-[44px]"
                           >
                             <span>🔑</span>
-                            <span>Masukkan Kunci API di sini</span>
+                            <span>Sambungkan Kunci Gemini di Sini</span>
                           </button>
                         </div>
                       )}
 
-                      {/* Meta info & "Terangkan Lagi" inside Bot Bubble (No Teal) */}
-                      {!msg.isError && (
-                        <div className="mt-3 pt-2.5 border-t border-[#F1D3E3] flex items-center justify-between gap-2 flex-wrap text-[11px]">
-                          <div className="flex items-center gap-1.5 text-[#68586B] font-medium">
-                            {msg.isLocalCalculation ? (
-                              <span className="text-[#7C3AED] font-bold flex items-center gap-1">
-                                <span>&#9889;</span>
-                                <span>Pengiraan Segera</span>
-                              </span>
-                            ) : (
-                              <span className="text-[#68586B] font-semibold flex items-center gap-1">
-                                <span>&#9889;</span>
-                                <span>
-                                  Gemini ({msg.model || 'gemini-1.5-flash-lite'})
-                                </span>
-                              </span>
-                            )}
-                            {msg.timestamp && (
-                              <span className="text-[#A191A3]">
-                                &bull; {msg.timestamp}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* "Terangkan Lagi" Button */}
-                          {!msg.isLocalCalculation && (
-                            <button
-                              type="button"
-                              disabled={isLoading}
-                              onClick={() => handleExplainMore(msg)}
-                              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#BE1E72] bg-[#FFF5FA] hover:bg-pink-100 active:scale-95 px-3 py-1.5 min-h-[36px] rounded-xl border border-[#F1D3E3] transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
-                              title="Minta penjelasan lebih mendalam"
-                            >
-                              <MagnifyingGlassIcon className="w-3.5 h-3.5 text-[#BE1E72]" />
-                              <span>Terangkan Lagi</span>
-                            </button>
+                    {/* Meta info inside Bot Bubble */}
+                    {!msg.isError && (
+                      <div className="mt-3 pt-2 border-t border-[#EBE1D7] flex items-center justify-between gap-2 flex-wrap text-xs">
+                        <div className="flex items-center gap-1.5 text-[#7A6E77] font-medium">
+                          {msg.isLocalCalculation ? (
+                            <span className="text-[#0D7355] font-semibold bg-[#E8F5E9] border border-[#C8E6C9] px-2 py-0.5 rounded-full">
+                              Kiraan Pantas
+                            </span>
+                          ) : (
+                            <span className="text-[#800020] font-semibold bg-[#F8EAE8] border border-[#EED7D5] px-2 py-0.5 rounded-full">
+                              Jawapan AI
+                            </span>
+                          )}
+                          {msg.timestamp && (
+                            <span className="text-[#7A6E77]">
+                              &bull; {msg.timestamp}
+                            </span>
                           )}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Contextual Follow-up Chips (Cadangan Balas Cepat) BELOW latest bot message - Wrapped naturally */}
-                {isLastMessage && showFollowUpChips && (
-                  <div className="mt-3 ml-10 space-y-2 animate-fadeIn w-full overflow-x-hidden">
-                    <span className="text-xs font-bold text-[#28152F] tracking-wide block">
-                      Cadangan Balas Cepat:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {latestMessage.suggestedFollowUps!.map((chipText, chipIdx) => (
-                        <button
-                          key={chipIdx}
-                          type="button"
-                          disabled={isLoading}
-                          onClick={() => {
-                            if (chipText.toLowerCase() === 'terangkan lagi') {
-                              handleExplainMore(latestMessage)
-                            } else if (chipText.toLowerCase().includes('selalu habis')) {
-                              handleSendMessage(
-                                'Produk saya selalu habis dijual sebelum masa tutup.'
-                              )
-                            } else if (chipText.toLowerCase().includes('masih berbaki')) {
-                              handleSendMessage(
-                                'Stok saya biasanya masih ada berbaki selepas jualan selesai.'
-                              )
-                            } else {
-                              handleSendMessage(chipText)
-                            }
-                          }}
-                          className="text-xs sm:text-sm font-semibold bg-white hover:bg-pink-50 active:bg-pink-100 text-[#28152F] hover:text-[#BE1E72] px-3.5 py-2 min-h-[44px] rounded-full border border-[#F1D3E3] shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          <ChatBubbleIcon className="w-3.5 h-3.5 text-[#BE1E72]" />
-                          <span>{chipText}</span>
-                        </button>
-                      ))}
-                    </div>
+              {/* Contextual Follow-up Chips (Cadangan Balas Cepat) BELOW latest bot message */}
+              {isLastMessage && showFollowUpChips && (
+                <div className="mt-2.5 space-y-2 animate-fadeIn w-full overflow-x-hidden">
+                  <span className="text-xs font-bold text-[#171317] tracking-wide block">
+                    Cadangan Balas Cepat:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {latestMessage.suggestedFollowUps!.map((chipText, chipIdx) => (
+                      <button
+                        key={chipIdx}
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => {
+                          if (chipText.toLowerCase() === 'terangkan lagi') {
+                            handleExplainMore(latestMessage)
+                          } else {
+                            handleSelectSuggestion(chipText)
+                          }
+                        }}
+                        className="text-xs sm:text-sm font-semibold bg-white hover:bg-[#FAF4EA] active:bg-[#F4EDE5] text-[#171317] hover:text-[#800020] px-4 py-2.5 min-h-[44px] rounded-full border border-[#EBE1D7] hover:border-[#800020] shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <ChatBubbleIcon className="w-3.5 h-3.5 text-[#800020]" />
+                        <span>{chipText}</span>
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
-            )
-          })}
-
-          {/* Typing/Thinking indicator */}
-          {isLoading && (
-            <div className="flex items-start gap-2 animate-fadeIn">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#BE1E72] to-[#7C3AED] text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                <SparklesIcon className="w-4 h-4 text-white" />
-              </div>
-              <div className="bg-white text-[#28152F] border border-[#F1D3E3] rounded-2xl sm:rounded-3xl rounded-tl-xs px-4 py-3 text-xs sm:text-sm shadow-2xs flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#BE1E72] animate-ping" />
-                <span className="text-[#68586B] font-medium">
-                  Pembantu AI sedang merangka jawapan ringkas...
-                </span>
-              </div>
+                </div>
+              )}
             </div>
-          )}
+          )
+        })}
 
-          <div ref={messagesEndRef} />
-        </div>
+        {/* Typing/Thinking indicator */}
+        {isLoading && (
+          <div className="animate-fadeIn max-w-[95%] sm:max-w-[90%]">
+            <div className="bg-white text-[#171317] border border-[#EBE1D7] rounded-[20px] rounded-tl-[4px] sm:rounded-[22px] sm:rounded-tl-[6px] px-4 py-3 text-xs sm:text-sm shadow-[0_2px_12px_rgba(23,19,23,0.03)] flex items-center gap-2.5">
+              <span className="flex gap-1.5 items-center">
+                <span className="w-2 h-2 rounded-full bg-[#800020] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 rounded-full bg-[#800020] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-[#800020] animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
+              <span className="text-[#7A6E77] font-medium">
+                Mekara sedang sediakan jawapan...
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* 4. Chat Composer Bar */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          handleSendMessage(inputText)
-        }}
-        className="flex items-center gap-2 pt-1"
-      >
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#BE1E72]">
-            <PencilIcon className="w-4 h-4" />
-          </div>
-          <input
-            type="text"
-            placeholder="Taip soalan Puan di sini..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            disabled={isLoading}
-            className="w-full min-h-[48px] pl-10 pr-4 py-2.5 text-sm sm:text-base text-[#28152F] bg-white rounded-full border border-[#F1D3E3] focus:outline-none focus:ring-2 focus:ring-[#BE1E72] focus:border-[#BE1E72] shadow-2xs transition-all placeholder:text-[#A191A3]"
-          />
-        </div>
+      {/* Floating Scroll to Latest Button */}
+      {showScrollBottomBtn && (
         <button
-          type="submit"
-          disabled={isLoading || !inputText.trim()}
-          className="min-h-[48px] px-5 sm:px-6 bg-[#BE1E72] hover:bg-[#9B1258] active:scale-95 text-white font-bold text-sm sm:text-base rounded-full shadow-md shadow-pink-200 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
+          type="button"
+          onClick={() => {
+            scrollToBottom('smooth')
+            isNearBottomRef.current = true
+          }}
+          className={`absolute right-4 sm:right-6 z-20 bg-white/95 border border-[#EBE1D7] text-[#800020] shadow-[0_4px_16px_rgba(23,19,23,0.1)] p-2.5 rounded-full hover:bg-[#FAF4EA] hover:border-[#800020] transition-all active:scale-95 flex items-center justify-center cursor-pointer min-h-[44px] min-w-[44px] ${
+            isKeyboardOpen ? 'bottom-16' : 'bottom-20'
+          }`}
+          aria-label="Tatal ke mesej terkini"
+          title="Mesej Terkini"
         >
-          <PaperAirplaneIcon className="w-4 h-4 text-white" />
-          <span>Hantar</span>
+          <ChevronDownIcon className="w-4 h-4 text-[#800020]" />
         </button>
-      </form>
+      )}
 
-      {/* 5. Compact Privacy Section (Below Composer) */}
-      <div className="bg-[#FFF0F7] rounded-2xl border border-[#F1D3E3] p-3 text-center flex items-center justify-center gap-2.5 shadow-2xs">
-        <div className="w-5 h-5 rounded-full bg-white border border-[#F1D3E3] flex items-center justify-center shrink-0">
-          <InfoIcon className="w-3.5 h-3.5 text-[#BE1E72]" />
-        </div>
-        <p className="text-[11px] sm:text-xs text-[#68586B] font-body text-left sm:text-center">
-          Soalan dihantar ke Google Gemini untuk mendapat jawapan berkaitan perniagaan Puan.
-        </p>
+      {/* 2. Message Composer Anchored at Bottom */}
+      <div
+        className={`shrink-0 bg-[#FAF7F2] border-t border-[#EBE1D7] px-3 pt-2.5 sm:pt-3 relative z-20 transition-[padding] duration-150 ${
+          isKeyboardOpen
+            ? 'pb-2.5'
+            : 'pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]'
+        }`}
+      >
+        {/* Floating Suggestions Panel (Cadangan Soalan) */}
+        {showSuggestions && (
+          <div
+            ref={suggestionsRef}
+            role="dialog"
+            aria-label="Cadangan Soalan"
+            className={`absolute bottom-full left-2 right-2 sm:left-4 sm:right-4 mb-2 bg-[#FAF6F0] rounded-[22px] border border-[#EBE1D7] shadow-[0_8px_30px_rgba(23,19,23,0.12)] p-3.5 overflow-y-auto space-y-2 animate-fadeIn z-30 ${
+              isKeyboardOpen ? 'max-h-[180px]' : 'max-h-[280px]'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-[#EBE1D7] px-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#171317]">
+                <LightBulbIcon className="w-4 h-4 text-[#800020]" />
+                <span>Cadangan Soalan Jualan:</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSuggestions(false)}
+                className="min-h-[36px] min-w-[36px] flex items-center justify-center text-xs text-[#7A6E77] hover:text-[#800020] hover:bg-[#FAF4EA] rounded-full cursor-pointer transition-colors"
+                aria-label="Tutup Cadangan"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              {adaptiveQuestions.map((sq) => (
+                <button
+                  key={sq.id}
+                  type="button"
+                  onClick={() => handleSelectSuggestion(sq.text)}
+                  className="apple-hover-card w-full text-left text-xs sm:text-sm text-[#171317] hover:text-[#800020] bg-white hover:bg-[#FAF4EA] p-3 rounded-[14px] border border-[#EBE1D7] hover:border-[#800020] shadow-2xs transition-all flex items-center gap-2 cursor-pointer active:scale-[0.99] min-h-[44px]"
+                >
+                  <ChatBubbleIcon className="w-3.5 h-3.5 text-[#800020] shrink-0" />
+                  <span className="line-clamp-2">{sq.text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Composer Form */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleSendMessage(inputText)
+          }}
+          className="flex items-center gap-2"
+        >
+          {/* Lightbulb Button Immediately Beside Message Input */}
+          <button
+            ref={lightbulbBtnRef}
+            type="button"
+            onClick={() => setShowSuggestions((prev) => !prev)}
+            className={`min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center transition-all cursor-pointer border shrink-0 active:scale-95 ${
+              showSuggestions
+                ? 'bg-[#800020] text-white border-[#800020] shadow-[0_2px_8px_rgba(128,0,32,0.25)]'
+                : 'bg-white text-[#800020] border-[#EBE1D7] hover:bg-[#FAF4EA] hover:border-[#800020]'
+            }`}
+            aria-label="Cadangan Soalan"
+            title="Cadangan Soalan"
+            aria-expanded={showSuggestions}
+          >
+            <LightBulbIcon className="w-5 h-5" />
+          </button>
+
+          {/* Message Input */}
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Tanya tentang jualan Puan..."
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onFocus={() => {
+                setIsKeyboardOpen(true)
+                window.scrollTo(0, 0)
+                setTimeout(() => {
+                  window.scrollTo(0, 0)
+                  scrollToBottom('smooth')
+                }, 80)
+              }}
+              onBlur={() => {
+                window.scrollTo(0, 0)
+                setTimeout(() => {
+                  window.scrollTo(0, 0)
+                  if (window.visualViewport) {
+                    setIsKeyboardOpen(window.innerHeight - window.visualViewport.height > 120)
+                  } else {
+                    setIsKeyboardOpen(false)
+                  }
+                }, 100)
+              }}
+              disabled={isLoading}
+              className="w-full min-h-[44px] sm:min-h-[48px] px-4 py-2.5 text-base sm:text-sm text-[#171317] bg-white rounded-full border border-[#EBE1D7] focus:outline-none focus:ring-2 focus:ring-[#800020]/20 focus:border-[#800020] shadow-2xs transition-all placeholder:text-[#7A6E77]"
+            />
+          </div>
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            disabled={isLoading || !inputText.trim()}
+            className="btn-primary-burgundy min-h-[44px] min-w-[44px] sm:min-h-[48px] px-4 sm:px-5 text-white font-bold text-sm sm:text-base rounded-full shadow-[0_2px_8px_rgba(128,0,32,0.22)] hover:shadow-[0_4px_12px_rgba(128,0,32,0.3)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
+            aria-label="Hantar soalan"
+          >
+            <PaperAirplaneIcon className="w-4 h-4 text-white" />
+            <span className="hidden sm:inline">Hantar</span>
+          </button>
+        </form>
       </div>
 
       {/* API Key Configuration Modal */}

@@ -39,7 +39,7 @@ export interface InsightsResultPayload {
 const CATEGORY_ICON_MAP: Record<string, InterpretedInsight['icon']> = {
   month_change: 'trending-up',
   margin: 'chart-bar',
-  concentration: 'alert-triangle',
+  concentration: 'shopping-bag',
   channel: 'shopping-bag',
   timing: 'trending-up',
   action: 'lightbulb',
@@ -55,6 +55,9 @@ function normalizePuanHonorific(str: string): string {
     .replace(/\bakak\b/g, 'Puan')
     .replace(/\bKak\b/g, 'Puan')
     .replace(/\bkak\b/g, 'Puan')
+    .replace(/\bMakcik\b/g, 'Puan')
+    .replace(/\bmakcik\b/g, 'Puan')
+    .replace(/untung bersih seunit/gi, 'untung kasar seunit')
 }
 
 export async function handleGenerateInsights(
@@ -119,19 +122,21 @@ Tugasan anda: Berdasarkan bukti penemuan data jualan yang telah disahkan berikut
 KONTEKS PERNIAGAAN PUAN:
 - Jumlah menu sedia ada: ${totalProducts > 0 ? totalProducts : 'beberapa'} produk.
 - PENTING: Puan sudah mempunyai ${totalProducts > 0 ? totalProducts : 'pelbagai'} menu sedia ada. JANGAN SESEKALI menyuruh Puan menambah atau mencipta produk baharu (ini akan meningkatkan kos dan risiko stok tidak laku). Sebaliknya, cadangkan untuk mengoptimumkan menu sedia ada, menguji set gabungan, atau menyemak menu yang kurang sambutan.
+- KESELAMATAN KEWANGAN: JANGAN syorkan menambah modal, perbelanjaan, atau stok semata-mata kerana produk laris. JANGAN anggap tumpuan jualan sebagai bahaya. Utamakan tindakan mampu milik seperti memantau sambutan, menjaga kualiti, atau menyemak produk kurang laris sebelum berbelanja.
+- ISTILAH KEWANGAN TEPAT: Gunakan istilah "untung kasar seunit" (BUKAN "untung bersih seunit"). JANGAN kelirukan untung kasar dengan untung bersih.
 - Tiada data inventori/stok luput: JANGAN buat dakwaan tentang lebihan stok atau pembaziran bahan.
 - Tiada data bakul belian: JANGAN buat dakwaan bahawa pelanggan kerap membeli dua produk bersama.
 
 BUKTI ANALISIS YANG DISAHKAN:
 ${candidates.map((c, i) => `${i + 1}. [Kategori: ${c.category}] Tajuk Asas: ${c.title}\nKeterangan Asas: ${c.text}\nData Bukti: ${JSON.stringify(c.evidence || {})}`).join('\n\n')}
 
-SYARAT KETAT (TASK 8B.3):
+SYARAT KETAT (TASK 8B.3 & PHASE 4.2):
 1. Kembalikan MAKSIMUM 3 penemuan sahaja.
 2. PANGGILAN PENGGUNA: Sentiasa gunakan panggilan sopan dan hormat "Puan" (contoh: "Puan disarankan...", "Puan boleh...", "jualan Puan..."). JANGAN SESEKALI gunakan perkataan "akak", "kak", atau "makcik".
 3. Setiap penemuan ada tajuk mesra dan ringkas (3 hingga 7 patah perkataan).
 4. Penerangan 1-2 ayat pendek sahaja (di bawah 30 patah perkataan).
-5. Nyatakan apa yang ditemui dan SATU tindakan praktikal kos rendah (contoh: buat set kombo dari menu sedia ada, sediakan stok awal, letak produk di hadapan, hebahkan di WhatsApp).
-6. Guna Bahasa Melayu harian biasa. ELAKKAN istilah korporat seperti "margin", "revenue concentration", "channel efficiency", atau "growth percentage". Terangkan dalam bahasa mudah (contoh: "untung seunit paling lumayan", "jualan bertumpu pada 3 produk").
+5. Nyatakan apa yang ditemui dan SATU tindakan praktikal kos rendah (contoh: pantau sambutan, buat set kombo dari menu sedia ada, letak produk di hadapan, semak menu kurang laris).
+6. Guna Bahasa Melayu harian biasa. ELAKKAN istilah korporat seperti "margin", "revenue concentration", "channel efficiency", atau "growth percentage". Terangkan dalam bahasa mudah (contoh: "untung kasar seunit terbaik", "3 produk utama jana jualan").
 7. JANGAN ulang statistik asas seperti jumlah jualan atau untung kasar keseluruhan.
 8. Tebalkan **kata kunci penting** untuk memudahkan pembacaan pantas.
 9. JANGAN reka produk atau angka baharu yang tiada dalam data bukti di atas.

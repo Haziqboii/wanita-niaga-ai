@@ -94,13 +94,29 @@ export function evaluateInsightQuality(
     return { valid: false, reason: 'Makes margin/cost claims without cost data' }
   }
 
-  // 8. Title word count (3 to 7 words)
+  // 8. Financial terminology check (never confuse gross unit profit with net unit profit)
+  if (
+    /\buntung\s+bersih\s+seunit\b/i.test(insight.text) ||
+    /\buntung\s+bersih\s+seunit\b/i.test(insight.title)
+  ) {
+    return { valid: false, reason: 'Incorrect terminology: uses untung bersih seunit instead of untung kasar seunit' }
+  }
+
+  // 9. Recommendation safety check (do not advise increasing capital, inventory or spending solely for high-selling products)
+  if (
+    /\b(tambah|tumpukan|tingkatkan|peruntukkan)\s+(modal|belanja|perbelanjaan|pelaburan)\b/i.test(insight.text) ||
+    /\btumpukan modal\b/i.test(insight.text)
+  ) {
+    return { valid: false, reason: 'Risky advice: advises increasing capital or spending without financial justification' }
+  }
+
+  // 10. Title word count (3 to 7 words)
   const titleWords = insight.title.trim().split(/\s+/).filter(Boolean)
   if (titleWords.length < 3 || titleWords.length > 7) {
     return { valid: false, reason: `Title has ${titleWords.length} words (must be 3-7 words)` }
   }
 
-  // 9. Text brevity (max 35 words)
+  // 11. Text brevity (max 35 words)
   const textWords = insight.text.trim().split(/\s+/).filter(Boolean)
   if (textWords.length > 35) {
     return { valid: false, reason: `Text has ${textWords.length} words (must be under 35 words)` }

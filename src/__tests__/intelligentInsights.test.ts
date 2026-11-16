@@ -59,14 +59,15 @@ describe('WANITA NIAGA AI — TASK 8B.3: Smart Business Adviser Test Suite', () 
 
       const concentrationItem = insights.find((i) => i.category === 'concentration')
       expect(concentrationItem).toBeDefined()
-      expect(concentrationItem?.title).toBe('Tumpukan Pada Menu Paling Laris')
-      expect(concentrationItem?.text).toContain('16 menu sedia ada')
-      expect(concentrationItem?.text).toContain('semak semula menu yang kurang sambutan')
+      expect(concentrationItem?.title).toBe('Produk Laris, Utamakan Dahulu')
+      expect(concentrationItem?.text).toContain('16 produk sedia ada')
+      expect(concentrationItem?.text).toContain('semak produk kurang laris sebelum menambah stok')
 
-      // Strictly must NOT recommend adding more products
+      // Strictly must NOT recommend adding more products or increasing capital
       expect(concentrationItem?.text.toLowerCase()).not.toContain('perkenalkan produk sampingan')
       expect(concentrationItem?.text.toLowerCase()).not.toContain('tambah produk')
       expect(concentrationItem?.text.toLowerCase()).not.toContain('tambah menu')
+      expect(concentrationItem?.text.toLowerCase()).not.toContain('tumpukan modal')
     })
 
     it('Scenario 2: Business with only 2 products does NOT flag concentration as dangerous or advise blind diversification', () => {
@@ -88,7 +89,7 @@ describe('WANITA NIAGA AI — TASK 8B.3: Smart Business Adviser Test Suite', () 
       expect(concentrationItem).toBeUndefined()
     })
 
-    it('Scenario 3: Identifies high-margin but low-selling product and recommends an affordable test', () => {
+    it('Scenario 3: Identifies high-margin but low-selling product and uses accurate gross profit per unit terminology', () => {
       const insights = generateDeterministicInsights({
         currentResult: allResult,
         allResult,
@@ -100,8 +101,9 @@ describe('WANITA NIAGA AI — TASK 8B.3: Smart Business Adviser Test Suite', () 
 
       const marginInsight = insights.find((i) => i.category === 'margin')
       expect(marginInsight).toBeDefined()
-      expect(marginInsight?.title).toBe('Untung Seunit Paling Berbaloi')
-      expect(marginInsight?.text).toContain('untung bersih seunit paling tinggi')
+      expect(marginInsight?.title).toBe('Untung Kasar Seunit Terbaik')
+      expect(marginInsight?.text).toContain('untung kasar seunit paling tinggi')
+      expect(marginInsight?.text).not.toContain('untung bersih seunit')
       expect(marginInsight?.text).toContain('uji sambutan')
     })
 
@@ -122,9 +124,9 @@ describe('WANITA NIAGA AI — TASK 8B.3: Smart Business Adviser Test Suite', () 
 
       const marginInsight = insights.find((i) => i.category === 'margin')
       expect(marginInsight).toBeDefined()
-      expect(marginInsight?.title).toBe('Jualan Laris Untung Seunit Rendah')
+      expect(marginInsight?.title).toBe('Laris Dijual, Tapi Untung Seunit Kecil')
       expect(marginInsight?.text).toContain('Air Sirap paling banyak terjual')
-      expect(marginInsight?.text).toContain('untung seunit yang agak kecil')
+      expect(marginInsight?.text).toContain('untung kasar seunit yang kecil')
     })
 
     it('Scenario 5: Two months of changing rankings detects shift without claiming permanent trend', () => {
@@ -139,7 +141,7 @@ describe('WANITA NIAGA AI — TASK 8B.3: Smart Business Adviser Test Suite', () 
 
       const monthShift = insights.find((i) => i.category === 'month_change')
       expect(monthShift).toBeDefined()
-      expect(monthShift?.title).toBe('Juara Jualan Berubah Mengikut Bulan')
+      expect(monthShift?.title).toBe('Produk Jualan Tertinggi Bertukar Ikut Bulan')
       expect(monthShift?.text).toContain('pantau sambutan bulan hadapan')
       // Must not claim permanent demand shift
       expect(monthShift?.text.toLowerCase()).not.toContain('trend kekal')
@@ -320,6 +322,36 @@ describe('WANITA NIAGA AI — TASK 8B.3: Smart Business Adviser Test Suite', () 
       expect(result.insights[0].text).toBe('Puan disarankan untuk semak jualan, Puan boleh cuba produk ini.')
       expect(result.insights[0].text).not.toContain('akak')
       expect(result.insights[0].text).not.toContain('Akak')
+    })
+
+    it('Scenario 13: Strictly rejects incorrect "untung bersih seunit" terminology in quality gate', () => {
+      const wrongTerminologyInsight = {
+        title: 'Untung Bersih Seunit Lumayan',
+        text: 'Kek Batik memberi untung bersih seunit paling lumayan.',
+      }
+      const check = evaluateInsightQuality(wrongTerminologyInsight, {
+        totalProducts: 5,
+        hasCostData: true,
+        hasDateData: true,
+        hasChannelData: true,
+      })
+      expect(check.valid).toBe(false)
+      expect(check.reason).toContain('untung kasar seunit')
+    })
+
+    it('Scenario 14: Strictly rejects risky advice advising to increase capital or spending', () => {
+      const riskyCapitalInsight = {
+        title: 'Tumpukan Modal Pada Produk Laris',
+        text: 'Puan boleh tumpukan modal dan tambah belanja untuk produk terlaris.',
+      }
+      const check = evaluateInsightQuality(riskyCapitalInsight, {
+        totalProducts: 16,
+        hasCostData: true,
+        hasDateData: true,
+        hasChannelData: true,
+      })
+      expect(check.valid).toBe(false)
+      expect(check.reason).toContain('Risky advice')
     })
   })
 })

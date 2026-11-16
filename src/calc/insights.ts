@@ -107,7 +107,7 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
         candidates.push({
           id: 'shift_top_product',
           category: 'month_change',
-          title: 'Juara Jualan Berubah Mengikut Bulan',
+          title: 'Produk Jualan Tertinggi Bertukar Ikut Bulan',
           icon: 'trending-up',
           text: `Hasil jualan bertukar daripada **${m1Top[0]} pada ${m1.label}** kepada **${m2Top[0]} pada ${m2.label}**. Puan boleh pantau sambutan bulan hadapan sebelum membuat persediaan stok bahan.`,
           score: 95,
@@ -140,7 +140,7 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
             category: 'month_change',
             title: 'Menu Semakin Disukai Pelanggan',
             icon: 'trending-up',
-            text: `Jualan **${biggestGainer.produk} meningkat pantas** pada ${m2.label} berbanding ${m1.label}. Teruskan promosi dan pastikan bahan mentahnya sentiasa mencukupi.`,
+            text: `Jualan **${biggestGainer.produk} meningkat pantas** pada ${m2.label} berbanding ${m1.label}. Teruskan pantauan sambutan pelanggan dan kekalkan kualiti menu ini.`,
             score: 90,
             evidence: {
               products: [biggestGainer.produk],
@@ -185,9 +185,9 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
         candidates.push({
           id: 'volume_thin_margin',
           category: 'margin',
-          title: 'Jualan Laris Untung Seunit Rendah',
+          title: 'Laris Dijual, Tapi Untung Seunit Kecil',
           icon: 'chart-bar',
-          text: `**${topQty.produk} paling banyak terjual**, tetapi memberi baki untung seunit yang agak kecil. Puan boleh semak kos bahan atau tawarkan bersama menu beruntung tinggi.`,
+          text: `**${topQty.produk} paling banyak terjual**, tetapi memberi untung kasar seunit yang kecil. Puan boleh semak kos bahan atau tawarkan bersama menu lain.`,
           score: 92,
           evidence: {
             products: [topQty.produk, topUnitProfit.produk],
@@ -203,9 +203,9 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
         candidates.push({
           id: 'margin_opportunity',
           category: 'margin',
-          title: 'Untung Seunit Paling Berbaloi',
+          title: 'Untung Kasar Seunit Terbaik',
           icon: 'chart-bar',
-          text: `**${topUnitProfit.produk}** beri **untung bersih seunit paling tinggi**, walaupun bukan paling laris. Cuba letakkannya di hadapan atau cadangkan kepada pelanggan untuk uji sambutan.`,
+          text: `**${topUnitProfit.produk}** beri **untung kasar seunit paling tinggi**, walaupun bukan paling laris. Cuba letakkannya di hadapan atau cadangkan kepada pelanggan untuk uji sambutan.`,
           score: 92,
           evidence: {
             products: [topUnitProfit.produk, topQty.produk],
@@ -221,9 +221,9 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
         candidates.push({
           id: 'margin_lead',
           category: 'margin',
-          title: 'Untung Bersih Seunit Lumayan',
+          title: 'Untung Kasar Seunit Lumayan',
           icon: 'chart-bar',
-          text: `**${topUnitProfit.produk}** hasilkan **baki untung seunit terbaik bagi setiap jualan**. Puan boleh tawarkan secara kombo bersama menu popular untuk galakkan tempahan.`,
+          text: `**${topUnitProfit.produk}** hasilkan **untung kasar seunit terbaik bagi setiap jualan**. Puan boleh tawarkan bersama menu popular untuk galakkan tempahan.`,
           score: 85,
           evidence: {
             products: [topUnitProfit.produk],
@@ -248,13 +248,13 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
     if (concentrationPercent >= 60) {
       if (context.totalProducts >= 5) {
         // Business already sells many products (e.g. 16 products)
-        // DO NOT tell owner to add new products! Instead focus capital & streamline!
+        // DO NOT advise increasing capital or inventory; advise monitoring & reviewing
         candidates.push({
           id: 'concentration_streamline',
           category: 'concentration',
-          title: 'Tumpukan Pada Menu Paling Laris',
-          icon: 'alert-triangle',
-          text: `Daripada **${context.totalProducts} menu sedia ada**, 3 produk utama jana sebahagian besar hasil. Puan boleh tumpukan modal pada menu ini dan semak semula menu yang kurang sambutan.`,
+          title: 'Produk Laris, Utamakan Dahulu',
+          icon: 'shopping-bag',
+          text: `Daripada **${context.totalProducts} produk sedia ada**, 3 produk utama jana sebahagian besar jualan. Terus pantau produk ini dan semak produk kurang laris sebelum menambah stok.`,
           score: 88,
           evidence: {
             products: sortedByRev.slice(0, 3).map((p) => p.produk),
@@ -270,9 +270,9 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
         candidates.push({
           id: 'concentration_focus',
           category: 'concentration',
-          title: 'Jualan Bertumpu Pada Sedikit Menu',
-          icon: 'alert-triangle',
-          text: `Hampir **semua hasil jualan datang daripada 3 produk utama**. Puan boleh fokus mengekalkan kualiti menu ini sambil perhatikan sambutan menu lain sedia ada.`,
+          title: 'Produk Laris, Utamakan Dahulu',
+          icon: 'shopping-bag',
+          text: `Sebahagian besar hasil jualan disumbang oleh **3 produk utama**. Terus pantau kualiti produk ini sambil perhatikan sambutan produk lain sedia ada.`,
           score: 88,
           evidence: {
             products: sortedByRev.slice(0, 3).map((p) => p.produk),
@@ -299,9 +299,9 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
       candidates.push({
         id: 'channel_opportunity',
         category: 'channel',
-        title: 'Peluang Tambah Tempahan Saluran Lain',
+        title: 'Peluang Saluran Jualan Lain',
         icon: 'shopping-bag',
-        text: `Jualan di **${mainChannel.saluran} bawa hasil terbesar**. Puan boleh cuba ambil pesanan awal di **${secondaryChannel.saluran}** daripada pelanggan tetap tanpa kos tambahan.`,
+        text: `Jualan di **${mainChannel.saluran} bawa hasil terbesar**. Puan boleh cuba ambil pesanan awal di **${secondaryChannel.saluran}** tanpa kos tambahan.`,
         score: 84,
         evidence: {
           metrics: {
@@ -332,9 +332,9 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
         candidates.push({
           id: 'timing_pattern',
           category: 'timing',
-          title: 'Jualan Lebih Rancak Hujung Minggu',
+          title: 'Jualan Rancak Hujung Minggu',
           icon: 'trending-up',
-          text: `Jualan pada **hari Sabtu dan Ahad jauh lebih tinggi** berbanding hari biasa. Puan boleh rancang pembelian bahan jualan menjelang Jumaat mengikut bajet harian.`,
+          text: `Jualan pada **hari Sabtu dan Ahad lebih tinggi** berbanding hari biasa. Puan boleh rancang persediaan jualan menjelang Jumaat mengikut bajet biasa.`,
           score: 82,
           evidence: {
             metrics: {
@@ -355,7 +355,7 @@ export function generateDeterministicInsights(options: InsightGenerationOptions)
     candidates.push({
       id: 'action_plan',
       category: 'action',
-      title: 'Cadangan Mudah Majukan Perniagaan',
+      title: 'Cadangan Majukan Perniagaan',
       icon: 'lightbulb',
       text: availableMonths.length >= 2
         ? 'Puan boleh bandingkan sambutan produk antara bulan untuk pilih menu yang paling sesuai dipromosikan.'

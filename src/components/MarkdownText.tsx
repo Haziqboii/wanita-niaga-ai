@@ -16,13 +16,13 @@ function renderInline(text: string): React.ReactNode[] {
     if (!part) return
     if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
       tokens.push(
-        <strong key={index} className="font-bold text-gray-950">
+        <strong key={index} className="font-bold text-[#171317]">
           {part.slice(2, -2)}
         </strong>
       )
     } else if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
       tokens.push(
-        <em key={index} className="italic text-gray-800">
+        <em key={index} className="italic text-[#6B6069]">
           {part.slice(1, -1)}
         </em>
       )
@@ -50,7 +50,7 @@ export function MarkdownText({ content }: { content: string }) {
       const text = currentParagraphLines.join(' ').trim()
       if (text) {
         elements.push(
-          <p key={`p-${elements.length}`} className="leading-relaxed">
+          <p key={`p-${elements.length}`} className="leading-relaxed text-[#171317]">
             {renderInline(text)}
           </p>
         )
@@ -65,10 +65,10 @@ export function MarkdownText({ content }: { content: string }) {
         elements.push(
           <ul
             key={`ul-${elements.length}`}
-            className="space-y-1.5 my-1.5 pl-4 list-disc text-gray-800 marker:text-purple-600"
+            className="space-y-1.5 my-1.5 pl-4 list-disc text-[#171317] marker:text-[#800020]"
           >
             {currentList.items.map((item, idx) => (
-              <li key={idx} className="leading-snug">
+              <li key={idx} className="leading-relaxed">
                 {renderInline(item)}
               </li>
             ))}
@@ -78,10 +78,10 @@ export function MarkdownText({ content }: { content: string }) {
         elements.push(
           <ol
             key={`ol-${elements.length}`}
-            className="space-y-1.5 my-1.5 pl-4 list-decimal text-gray-800 marker:font-bold marker:text-purple-700"
+            className="space-y-1.5 my-1.5 pl-4 list-decimal text-[#171317] marker:font-bold marker:text-[#800020]"
           >
             {currentList.items.map((item, idx) => (
-              <li key={idx} className="leading-snug">
+              <li key={idx} className="leading-relaxed">
                 {renderInline(item)}
               </li>
             ))}

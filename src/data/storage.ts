@@ -26,7 +26,7 @@ export interface SavedReportState {
   operatingExpenses: number | null
   selectedMonth: string
   isSampleData: boolean
-  page: 'home' | 'story' | 'upload' | 'manual' | 'dashboard' | 'chat' | 'guide'
+  page: 'landing' | 'home' | 'story' | 'upload' | 'manual' | 'dashboard' | 'chat' | 'guide'
   chatMessages: ChatMessage[]
   storyDraft?: {
     storyText?: string

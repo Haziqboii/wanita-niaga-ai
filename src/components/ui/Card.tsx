@@ -15,12 +15,12 @@ export function Card({
     none: '',
     sm: 'p-3 sm:p-4',
     md: 'p-4 sm:p-5',
-    lg: 'p-6 sm:p-7',
+    lg: 'p-5 sm:p-7',
   }
 
   return (
     <div
-      className={`bg-white rounded-2xl border border-gray-100 shadow-sm ${paddings[padding]} ${className}`}
+      className={`bg-[#FAF6F0] rounded-[22px] border border-[#EBE1D7] shadow-[0_4px_20px_rgba(23,19,23,0.03)] ${paddings[padding]} ${className}`}
     >
       {children}
     </div>

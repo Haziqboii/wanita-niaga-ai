@@ -187,7 +187,7 @@ describe('WANITA NIAGA AI — TASK 4: Monthly Filtering & Comparison Test Suite'
       allResult: allCalc,
       monthlyComparison: comparisonOkt,
     })
-    expect(ansComp).toContain('Perbandingan Prestasi Bulanan')
+    expect(ansComp).toContain('Perbandingan Jualan Bulanan')
     expect(ansComp).toContain('meningkat sebanyak RM940.70 (5.8%)')
   })
 

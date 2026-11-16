@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Layout } from './components/Layout'
+import { LandingHero } from './components/LandingHero'
 import { Homepage } from './components/Homepage'
 import { StoryInputForm } from './components/StoryInputForm'
 import { UploadForm } from './components/UploadForm'
@@ -7,6 +8,7 @@ import { ManualEntryForm } from './components/ManualEntryForm'
 import { Dashboard } from './components/Dashboard'
 import { Chat } from './components/Chat'
 import { UserGuide } from './components/UserGuide'
+import { InstallPwaBanner } from './components/InstallPwaBanner'
 import { calculateSales, emptyResult } from './calc/sales'
 import {
   extractAvailableMonths,
@@ -24,12 +26,12 @@ import {
 } from './data/storage'
 import type { RawSale, SalesResult, ChatMessage } from './types'
 
-type Page = 'home' | 'story' | 'upload' | 'manual' | 'dashboard' | 'chat' | 'guide'
+type Page = 'landing' | 'home' | 'story' | 'upload' | 'manual' | 'dashboard' | 'chat' | 'guide'
 
 const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
   {
     id: 'welcome',
-    text: 'Salam sejahtera, Puan! 😊\nSaya Pembantu AI Wanita Niaga yang siap membantu perniagaan Puan hari ini.\n\nAda apa-apa soalan mengenai prestasi jualan atau produk Puan yang ingin Puan ketahui?',
+    text: 'Hai Puan! 🌷 Saya Pembantu Mekara.\nSaya boleh bantu Puan memahami rekod jualan, keuntungan dan prestasi perniagaan.\n\nAda apa-apa soalan mengenai prestasi jualan atau produk yang ingin Puan ketahui?',
     sender: 'bot',
     timestamp: '11:05',
     model: 'gemini-1.5-flash-lite',
@@ -39,8 +41,8 @@ const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
 ]
 
 export default function App() {
-  const [page, setPage] = useState<Page>('home')
-  const [previousPage, setPreviousPage] = useState<Page>('home')
+  const [page, setPage] = useState<Page>('landing')
+  const [previousPage, setPreviousPage] = useState<Page>('landing')
   const [currentRecords, setCurrentRecords] = useState<RawSale[]>([])
   const [operatingExpenses, setOperatingExpenses] = useState<number | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL')
@@ -149,6 +151,11 @@ export default function App() {
     isStoryReview,
     activeReportId,
   ])
+
+  // 3. Reset window scroll to top whenever page navigation occurs
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [page])
 
   const handleOpenGuide = () => {
     setPreviousPage(page)
@@ -297,9 +304,19 @@ export default function App() {
   let subtitle: string | undefined = undefined
   let stepIndicator: string | undefined = undefined
   let showBack = false
-  let onBack = () => setPage('home')
+  let onBack: (() => void) | undefined = undefined
 
-  if (page === 'story') {
+  if (page === 'landing') {
+    currentStep = ''
+    subtitle = undefined
+    showBack = false
+    onBack = undefined
+  } else if (page === 'home') {
+    currentStep = 'Pilih Kaedah Jualan'
+    subtitle = undefined
+    showBack = true
+    onBack = () => setPage('landing')
+  } else if (page === 'story') {
     currentStep = isStoryReview ? 'Semak Maklumat' : 'Ceritakan Jualan'
     stepIndicator = isStoryReview ? 'Langkah 2/3' : undefined
     showBack = true
@@ -315,7 +332,7 @@ export default function App() {
     showBack = true
     onBack = () => setPage('home')
   } else if (page === 'manual') {
-    currentStep = 'Isi Jualan Manual'
+    currentStep = 'Urus Rekod Jualan'
     showBack = true
     onBack = () => (currentRecords.length > 0 ? setPage('dashboard') : setPage('home'))
   } else if (page === 'dashboard') {
@@ -336,12 +353,13 @@ export default function App() {
     showBack = true
     onBack = () => setPage('home')
   } else if (page === 'chat') {
-    currentStep = 'Pembantu AI'
+    currentStep = 'Mekara'
+    subtitle = ''
     showBack = true
     onBack = () => setPage('dashboard')
   } else if (page === 'guide') {
-    currentStep = 'Panduan Pengguna'
-    subtitle = 'Ketahui cara menggunakan Wanita Niaga AI'
+    currentStep = 'Panduan Mekara'
+    subtitle = ''
     showBack = true
     onBack = handleCloseGuide
   }
@@ -354,6 +372,7 @@ export default function App() {
       showBack={showBack}
       onBack={onBack}
       onOpenGuide={page === 'guide' ? undefined : handleOpenGuide}
+      isLanding={page === 'landing'}
       isHome={page === 'home'}
       isStory={page === 'story'}
       isInnerBerryPop={
@@ -364,13 +383,22 @@ export default function App() {
         page === 'chat' ||
         page === 'guide'
       }
-      hideHeader={page === 'chat'}
+      isFullScreen={page === 'chat'}
+      hideFooter={page === 'chat'}
       onNavHome={() => {
         setIsStoryReview(false)
-        setPage('home')
+        if (page === 'home') {
+          setPage('landing')
+        } else {
+          setPage('home')
+        }
       }}
       saveStatus={saveStatus}
     >
+      {page === 'landing' && (
+        <LandingHero onEnter={() => setPage('home')} />
+      )}
+
       {page === 'home' && (
         <Homepage
           onStory={() => setPage('story')}
@@ -378,8 +406,8 @@ export default function App() {
           onManual={() => setPage('manual')}
           onSample={handleLoadSample}
           onOpenGuide={handleOpenGuide}
-          hasSavedReport={savedRecordCount > 0}
-          savedRecordCount={savedRecordCount}
+          hasSavedReport={savedRecordCount > 0 || currentRecords.length > 0}
+          savedRecordCount={savedRecordCount || currentRecords.length}
           onResumeSavedReport={() => setPage('dashboard')}
           onStartNewReport={handleStartNewReport}
         />
@@ -388,6 +416,7 @@ export default function App() {
       {page === 'story' && (
         <StoryInputForm
           initialStory={storyText}
+          initialRecords={currentRecords}
           onStoryChange={setStoryText}
           isReviewStage={isStoryReview}
           onReviewStageChange={setIsStoryReview}
@@ -449,8 +478,18 @@ export default function App() {
       )}
 
       {page === 'guide' && (
-        <UserGuide onClose={handleCloseGuide} />
+        <UserGuide
+          onClose={handleCloseGuide}
+          onNavigate={(targetPage) => {
+            setPreviousPage(targetPage === 'dashboard' || targetPage === 'chat' ? 'dashboard' : 'home')
+            setPage(targetPage)
+          }}
+          hasExistingData={validRecords.length > 0}
+        />
       )}
+
+      {/* Floating Smart Install Banner (Pilihan 1 - Apple Style) */}
+      {page !== 'chat' && <InstallPwaBanner />}
     </Layout>
   )
 }
